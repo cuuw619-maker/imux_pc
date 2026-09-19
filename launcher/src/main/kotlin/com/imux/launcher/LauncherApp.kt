@@ -20,7 +20,7 @@ fun LauncherApp() {
         val validator: RuntimeValidator = remember { RuntimeValidatorImpl() }
         val gameLauncher: GameLaunchService = remember { MockGameLaunchService() }
         val scope = rememberCoroutineScope()
-        var state by remember<LauncherUiState> { mutableStateOf(LauncherUiState.Loading) }
+        var state by remember { mutableStateOf<LauncherUiState>(LauncherUiState.Loading) }
         var settings by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
