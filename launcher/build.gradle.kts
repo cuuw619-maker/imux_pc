@@ -1,35 +1,21 @@
 plugins {
     kotlin("jvm")
-    kotlin("plugin.compose")
-    id("org.jetbrains.compose")
+    application
 }
+
+repositories {
+    mavenCentral()
+}
+
 dependencies {
-    implementation(project(":core"))
-    implementation(project(":runtime"))
-    implementation(compose.desktop.currentOs)
-    implementation(compose.material3)
-    implementation(compose.runtime)
-    implementation(compose.foundation)
-    implementation(compose.materialIconsExtended)
-    implementation("org.xerial:sqlite-jdbc:3.50.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }
-kotlin { jvmToolchain(21) }
-compose.desktop {
-    application {
-        mainClass = "com.imux.launcher.MainKt"
-        nativeDistributions {
-            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
-            packageName = "Imux"
-            packageVersion = "0.0.1"
-            description = "Imux Windows launcher"
-            vendor = "Imux"
-            windows {
-                menuGroup = "Imux"
-                shortcut = false
-                dirChooser = false
-            }
-        }
-    }
+
+application {
+    mainClass.set("com.imux.launcher.MainKt")
+}
+
+kotlin {
+    jvmToolchain(21)
 }
