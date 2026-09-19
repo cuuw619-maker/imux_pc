@@ -42,24 +42,6 @@ jobs:
             build/native/bin/imux_ui.hlsl
           if-no-files-found: error
 
-  publish:
-    needs: [native]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Download native launcher artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: imux-launcher-windows-x64
-          path: release
-
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="imux-build-${{ github.run_number }}"
-          gh release create "$TAG"             release/ImuxLauncher.exe             release/imux_ui.hlsl             --repo "${{ github.repository }}"             --title "Imux Windows build ${{ github.run_number }}"             --prerelease             --target "${{ github.sha }}"             --notes "Automated Windows x64 build from commit ${{ github.sha }}."
-
   rust:
     runs-on: windows-latest
     steps:
