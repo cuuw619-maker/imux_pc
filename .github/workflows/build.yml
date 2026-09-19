@@ -52,6 +52,7 @@ jobs:
             build/native/bin/ImuxLauncher.exe
             build/native/bin/imux_ui.hlsl
             build/native/bin/imux_world.hlsl
+            build/native/bin/assets/
           if-no-files-found: error
 
   rust:
