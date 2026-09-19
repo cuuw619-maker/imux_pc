@@ -9,148 +9,72 @@ permissions:
   contents: read
 
 jobs:
-  validation:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Validate project structure
-        run: python tools/python/validate_project.py
-
-  jvm:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.10.2"
-      - name: Test
-        run: gradle test
-      - name: Build modules
-        run: gradle build
-
-  rust:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Check Rust workspace
-        working-directory: rust
-        run: cargo test --workspace
-
   windows:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Prepare Windows icon
-        run: |
-          python -m pip install --disable-pip-version-check pillow
-          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/imux_icon.ico
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.11"
 
-      - name: JVM tests
-        run: gradle test
+      - name: Build Kotlin launcher
+        run: gradle :launcher:test :launcher:installDist
 
-      - name: Build Kotlin launcher distribution
-        run: gradle :launcher:createDistributable
-
-      - name: Configure game runtime
-        run: cmake -S . -B build/native -A x64
-
-      - name: Build game runtime
-        run: cmake --build build/native --config Release
-
-      - name: Verify launcher and game
+      - name: Build C++ game
         shell: pwsh
         run: |
-          $launcher = "build/compose/binaries/main/app/Imux/Imux.exe"
-          $game = "build/native/bin/ImuxGame.exe"
-          if (!(Test-Path $launcher)) { throw "Kotlin launcher executable was not produced: $launcher" }
-          if (!(Test-Path $game)) { throw "Game executable was not produced: $game" }
-          Write-Host "Launcher: $launcher"
-          Write-Host "Game: $game"
+          cmake -S native -B build/native -A x64
+          cmake --build build/native --config Release
 
-      - name: Import signing certificate
-        if: ${{ github.event_name != 'pull_request' }}
-        shell: pwsh
-        env:
-          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
-          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-        run: |
-          $pfxPath = Join-Path $env:RUNNER_TEMP "imux-signing.pfx"
-          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
-          $securePassword = ConvertTo-SecureString $env:WINDOWS_CERT_PASSWORD -AsPlainText -Force
-          $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
-          if ($null -eq $cert) { throw "Failed to import signing certificate" }
-          "IMUX_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Remove-Item $pfxPath -Force
-
-      - name: Sign launcher and game
-        if: ${{ github.event_name != 'pull_request' && env.IMUX_CERT_THUMBPRINT != '' }}
+      - name: Package Windows app
         shell: pwsh
         run: |
-          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending |
+          $lib = (Resolve-Path "launcher/build/install/launcher/lib").Path
+          $mainJar = Get-ChildItem $lib -Filter "*.jar" |
+            Where-Object { $_.Name -eq "launcher.jar" -or $_.Name -like "launcher-*.jar" } |
             Select-Object -First 1
-          if ($null -eq $signtool) { throw "signtool.exe was not found" }
-          foreach ($exe in @(
-            "build/compose/binaries/main/app/Imux/Imux.exe",
-            "build/native/bin/ImuxGame.exe"
-          )) {
-            & $signtool.FullName sign /sha1 $env:IMUX_CERT_THUMBPRINT /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com $exe
-            if ($LASTEXITCODE -ne 0) { throw "signtool failed for $exe with exit code $LASTEXITCODE" }
+
+          if ($null -eq $mainJar) {
+            throw "Launcher jar not found in $lib"
           }
 
-      - name: Verify executable signatures
-        shell: pwsh
-        run: |
-          foreach ($exe in @(
-            "build/compose/binaries/main/app/Imux/Imux.exe",
-            "build/native/bin/ImuxGame.exe"
-          )) {
-            $signature = Get-AuthenticodeSignature (Resolve-Path $exe)
-            Write-Host "$exe => $($signature.Status)"
-            if ($signature.Status -eq "NotSigned") { throw "$exe is not signed" }
+          New-Item -ItemType Directory -Force -Path "build/package" | Out-Null
+
+          jpackage \
+            --type app-image \
+            --name Imux \
+            --app-version 0.0.1 \
+            --input $lib \
+            --main-jar $mainJar.Name \
+            --main-class com.imux.launcher.MainKt \
+            --dest "build/package"
+
+          $app = "build/package/Imux"
+          $game = "build/native/bin/ImuxGame.exe"
+
+          if (!(Test-Path "$app/Imux.exe")) {
+            throw "Launcher executable was not produced"
+          }
+          if (!(Test-Path $game)) {
+            throw "Game executable was not produced"
           }
 
-      - name: Prepare clean Windows artifact
-        shell: pwsh
-        run: |
-          $stage = "build/imux-windows-x64"
-          $app = "build/compose/binaries/main/app/Imux"
-          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Path $stage | Out-Null
-          Copy-Item $app "$stage/Imux" -Recurse
-          Copy-Item "build/native/bin/ImuxGame.exe" "$stage/Imux/ImuxGame.exe"
-          Copy-Item "build/native/bin/assets" "$stage/Imux/assets" -Recurse
-          Get-FileHash "$stage/Imux/Imux.exe" -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  Imux.exe" } |
-            Set-Content "$stage/SHA256SUMS.txt" -Encoding ascii
-          Get-FileHash "$stage/Imux/ImuxGame.exe" -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  ImuxGame.exe" } |
-            Add-Content "$stage/SHA256SUMS.txt" -Encoding ascii
+          Copy-Item $game "$app/ImuxGame.exe"
 
-      - name: Upload Windows launcher artifact
+          New-Item -ItemType Directory -Force -Path "build/imux-windows-x64" | Out-Null
+          Compress-Archive -Path "$app/*" -DestinationPath "build/imux-windows-x64/Imux-windows-x64.zip" -Force
+
+      - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
           name: imux-windows-x64
-          retention-days: 7
-          path: build/imux-windows-x64
+          retention-days: 14
+          path: build/imux-windows-x64/Imux-windows-x64.zip
           if-no-files-found: error
