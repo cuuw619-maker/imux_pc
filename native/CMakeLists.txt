@@ -19,37 +19,26 @@ if (WIN32)
     endif()
 
     configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/imux_launcher.rc.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/imux_launcher.rc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/imux_game.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/imux_game.rc"
         COPYONLY
     )
     file(COPY "${IMUX_GENERATED_ICON}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
-    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/imux_launcher.manifest" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/imux_game.manifest" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
 
-    add_executable(ImuxLauncher WIN32
-        cpp/ImuxLauncher.cpp
-        cpp/imux_launcher_functions.cpp
+    add_executable(ImuxGame WIN32
+        cpp/ImuxGame.cpp
         cpp/imux_3d_engine.cpp
-        "${CMAKE_CURRENT_BINARY_DIR}/imux_launcher.rc"
+        "${CMAKE_CURRENT_BINARY_DIR}/imux_game.rc"
     )
-    target_include_directories(ImuxLauncher PRIVATE include)
-    target_link_libraries(ImuxLauncher PRIVATE d2d1 dwrite d3d11 d3dcompiler windowscodecs ole32)
-    target_compile_definitions(ImuxLauncher PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
-    target_link_options(ImuxLauncher PRIVATE "/MANIFEST:NO")
-    set_target_properties(ImuxLauncher PROPERTIES
-        OUTPUT_NAME "ImuxLauncher"
+    target_include_directories(ImuxGame PRIVATE include)
+    target_link_libraries(ImuxGame PRIVATE d3d11 d3dcompiler dxgi windowscodecs ole32)
+    target_compile_definitions(ImuxGame PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
+    target_link_options(ImuxGame PRIVATE "/MANIFEST:NO")
+    set_target_properties(ImuxGame PROPERTIES
+        OUTPUT_NAME "ImuxGame"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
         RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin"
-    )
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/imux_ui.hlsl"
-        "${CMAKE_BINARY_DIR}/bin/imux_ui.hlsl"
-        COPYONLY
-    )
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/imux_world.hlsl"
-        "${CMAKE_BINARY_DIR}/bin/imux_world.hlsl"
-        COPYONLY
     )
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets" DESTINATION "${CMAKE_BINARY_DIR}/bin")
 endif()
