@@ -45,9 +45,10 @@ void Fill(float l, float t, float r, float b, float radius = 0.0f) {
         g_brush.Get());
 }
 
-void Text(const wchar_t* value, float x, float y, float w, float h, IDWriteTextFormat* format) {
+void Text(const wchar_t* value, float x, float y, float w, float h,
+          const ComPtr<IDWriteTextFormat>& format) {
     g_target->DrawTextW(value, static_cast<UINT32>(wcslen(value)),
-        format, D2D1::RectF(x, y, x + w, y + h), g_brush.Get());
+        format.Get(), D2D1::RectF(x, y, x + w, y + h), g_brush.Get());
 }
 
 void Render(HWND hwnd) {
@@ -212,7 +213,7 @@ void Render(HWND hwnd) {
 }
 
 void InitializeGraphics(HWND hwnd) {
-    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &g_d2dFactory);
+    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, g_d2dFactory.GetAddressOf());
     DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
         reinterpret_cast<IUnknown**>(g_writeFactory.GetAddressOf()));
 
