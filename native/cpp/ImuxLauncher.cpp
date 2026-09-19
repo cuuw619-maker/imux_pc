@@ -372,7 +372,7 @@ void RenderChangelog(float left, float right, float top, float bottom) {
     Text(L"Release history is kept here until the next version is approved.", {left, top + 48.0f, right, top + 74.0f}, g_body);
 
     const float y0 = top + 96.0f;
-    const float h = Clamp((bottom - y0 - 12.0f) / 5.0f, 54.0f, 74.0f);
+    const float h = Clamp((bottom - y0 - 50.0f) / 5.0f, 54.0f, 74.0f);
     const wchar_t* entries[] = {
         L"Launcher workspace and navigation rebuilt from scratch.",
         L"Responsive layout for compact and wide Windows windows.",
