@@ -181,7 +181,7 @@ void BuildScene() {
     wchar_t texturePath[MAX_PATH]{};
     swprintf_s(texturePath, L"%s\\assets\\blocks\\dirt.png", modulePath);
     LoadTexture(texturePath, g_blockTexture);
-}}
+}
 
 bool Initialize() {
     DXGI_SWAP_CHAIN_DESC desc{};
