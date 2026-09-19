@@ -1,4 +1,4 @@
 #include <windows.h>
 
 #define IDI_IMUX_ICON 101
-IDI_IMUX_ICON ICON "@IMUX_ICON_PATH@"
+IDI_IMUX_ICON ICON "imux_icon.ico"
