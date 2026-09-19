@@ -473,11 +473,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     WNDCLASSEXW wc{sizeof(WNDCLASSEXW)};
     wc.hInstance = instance; wc.lpfnWndProc = WndProc; wc.lpszClassName = kWindowClass;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW); wc.hbrBackground = nullptr;
-    if (!RegisterClassExW(&wc)) Log("RegisterClassExW failed: error=%lu", GetLastError());
+    if (!RegisterClassExW(&wc)) Log("RegisterClassExW failed: error=%lu", GetLastError()); else Log("RegisterClassExW succeeded");
+    Log("Creating main window");
     HWND hwnd = CreateWindowExW(0, kWindowClass, kWindowTitle, WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 1280, 760, nullptr, nullptr, instance, nullptr);
     if (!hwnd) { Log("CreateWindowExW failed: error=%lu", GetLastError()); return 1; }
-    // Start maximized so the launcher uses the full available work area on Windows.\n    // The UI itself remains bounded by the live client rectangle and responsive layout.\n    ShowWindow(hwnd, SW_MAXIMIZE); UpdateWindow(hwnd);
+    Log("CreateWindowExW succeeded hwnd=%p", hwnd);
+    // Start maximized so the launcher uses the full available work area on Windows.\n    // The UI itself remains bounded by the live client rectangle and responsive layout.\n    Log("Calling ShowWindow");
+    ShowWindow(hwnd, SW_MAXIMIZE);
+    Log("Calling UpdateWindow");
+    UpdateWindow(hwnd);
+    Log("Entering message loop");
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
     Log("Message loop ended: exitCode=%lld", static_cast<long long>(msg.wParam));
