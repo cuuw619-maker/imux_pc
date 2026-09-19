@@ -37,12 +37,14 @@ fun LauncherApp() {
         val repository: ConfigRepository = remember { JsonConfigRepository() }
         val validator: RuntimeValidator = remember { RuntimeValidatorImpl() }
         val gameLauncher: GameLaunchService = remember { MockGameLaunchService() }
+        val metadataStore = remember { LauncherMetadataStore() }
         val scope = rememberCoroutineScope()
         var state by remember { mutableStateOf<LauncherUiState>(LauncherUiState.Loading) }
         var page by remember { mutableStateOf(Page.Home) }
         var drawer by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
+            runCatching { metadataStore.initialize() }
             runCatching {
                 val config = repository.load()
                 val profile = config.installations.firstOrNull { it.id == config.selectedInstallationId }
