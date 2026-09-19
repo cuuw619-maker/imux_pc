@@ -4,6 +4,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 required = [
     "native/CMakeLists.txt",
+    "native/imux_launcher.manifest",
     "native/cpp/ImuxLauncher.cpp",
     "native/cpp/imux_3d_engine.cpp",
     "native/include/imux_3d_engine.h",
@@ -42,6 +43,7 @@ checks = {
     "real game launch boundary": "CreateProcessW" in launcher and "ImuxGame.exe" in launcher,
     "built-in world fallback": "imux_world_run" in launcher,
     "F11 fullscreen": "VK_F11" in launcher and "ToggleFullscreen" in launcher,
+    "DPI manifest": "PerMonitorV2" in (ROOT / "native/imux_launcher.manifest").read_text(encoding="utf-8"),
     "world movement": "GetAsyncKeyState('W')" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8") and "GetCursorPos" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8"),
     "world rendering": "D3D11CreateDeviceAndSwapChain" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8"),
     "release version": 'CURRENT_VERSION = "0.0.1"' in release,
