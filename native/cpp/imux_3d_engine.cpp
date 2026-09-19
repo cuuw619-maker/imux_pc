@@ -92,7 +92,11 @@ void ReleaseTargets() {
 bool CreateTargets() {
     if (!g_swapChain || !g_device) return false;
     ComPtr<ID3D11Texture2D> backBuffer;
-    if (FAILED(g_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer)))) return false;
+    HRESULT hr = g_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+    if (FAILED(hr)) {
+        WorldLog("GetBuffer failed: hr=0x%08lX", static_cast<unsigned long>(hr));
+        return false;
+    }
     hr = g_device->CreateRenderTargetView(backBuffer.Get(), nullptr, &g_rtv);
     if (FAILED(hr)) {
         WorldLog("CreateRenderTargetView failed: hr=0x%08lX", static_cast<unsigned long>(hr));
