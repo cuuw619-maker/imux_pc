@@ -135,8 +135,8 @@ void BuildScene() {
         const XMFLOAT3 normals[6] = {{0,0,-1},{0,0,1},{-1,0,0},{1,0,0},{0,1,0},{0,-1,0}};
         for (int f=0; f<6; ++f) {
             uint32_t base = static_cast<uint32_t>(vertices.size());
-            for (int v=0; v<4; ++v) const XMFLOAT2 uv[4] = {{0,1},{0,0},{1,0},{1,1}};
-            vertices.push_back({p[faces[f][v]], normals[f], color, uv[v]});
+            const XMFLOAT2 uv[4] = {{0,1},{0,0},{1,0},{1,1}};
+            for (int v=0; v<4; ++v) vertices.push_back({p[faces[f][v]], normals[f], color, uv[v]});
             indices.insert(indices.end(), {base,base+1,base+2,base,base+2,base+3});
         }
     };
@@ -206,20 +206,25 @@ bool Initialize() {
 
     const char* shader = R"(
 cbuffer Camera : register(b0) { matrix worldViewProjection; float time; float3 padding; };
-struct VSInput { float3 position : POSITION; float3 normal : NORMAL; float4 color : COLOR0; };
-struct VSOutput { float4 position : SV_POSITION; float3 normal : NORMAL; float4 color : COLOR0; float3 worldPosition : TEXCOORD0; };
+struct VSInput { float3 position : POSITION; float3 normal : NORMAL; float4 color : COLOR0; float2 uv : TEXCOORD1; };
+struct VSOutput { float4 position : SV_POSITION; float3 normal : NORMAL; float4 color : COLOR0; float3 worldPosition : TEXCOORD0; float2 uv : TEXCOORD1; };
 VSOutput VSMain(VSInput input) {
     VSOutput output;
     output.position = mul(float4(input.position, 1.0), worldViewProjection);
     output.normal = input.normal;
     output.color = input.color;
     output.worldPosition = input.position;
+    output.uv = input.uv;
     return output;
 }
+Texture2D blockTexture : register(t0);
+SamplerState blockSampler : register(s0);
 float4 PSMain(VSOutput input) {
     float3 lightDirection = normalize(float3(-0.45,0.85,-0.35));
     float diffuse = saturate(dot(normalize(input.normal),lightDirection))*0.65+0.35;
-    return float4(input.color.rgb * diffuse,1.0);
+    float pulse = 0.025 * sin(time * 1.7 + input.worldPosition.x * 0.15);
+    float3 texel = blockTexture.Sample(blockSampler, input.uv).rgb;
+    return float4(texel * input.color.rgb * (diffuse + pulse),1.0);
 })";
 
     ComPtr<ID3DBlob> vsBlob, psBlob;
@@ -338,9 +343,11 @@ void RenderFrame() {
 
 extern "C" int imux_world_run(HWND owner) {
     if (g_running) return 1;
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     g_hwnd = owner;
     g_running = Initialize();
     if (g_running) CaptureMouse(true);
+    else CoUninitialize();
     return g_running ? 1 : 0;
 }
 
@@ -373,6 +380,7 @@ extern "C" void imux_world_shutdown(void) {
     g_device.Reset();
     g_running = false;
     g_hwnd = nullptr;
+    CoUninitialize();
 }
 
 extern "C" LRESULT imux_world_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
