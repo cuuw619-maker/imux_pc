@@ -9,7 +9,7 @@ The launcher is being split into two deliberate layers:
 - **Native Imux UI Engine** — C++/Win32 + Direct2D + DirectWrite, with a Direct3D 11/HLSL rendering pipeline foundation.
 - **Launcher services** — Kotlin/JVM modules for configuration, runtime validation, process management and application/domain contracts.
 
-Compose remains a development shell while the native launcher becomes the production Windows UI.
+Compose remains a first-class hybrid UI shell with Material 3 / Material You design, while the native C++ renderer provides the Windows rendering foundation. The two layers share the same launcher-service boundary; neither owns the other's business logic.
 
 The native UI is an original Imux design. XMCL/X-Minecraft Launcher is used only as a reference for general launcher UX patterns such as instance-oriented organization, renderer/runtime separation, explicit launch state, and structured settings.
 
@@ -17,8 +17,10 @@ The native UI is an original Imux design. XMCL/X-Minecraft Launcher is used only
 
 The current native prototype provides:
 
-- dark responsive Windows desktop layout
-- persistent left navigation model
+- adaptive Windows desktop layout for windowed/maximized/fullscreen states
+- DPI-aware responsive sizing without a persistent sidebar
+- animated hamburger navigation drawer
+- shared visual/hit-test geometry so buttons respond where they are drawn
 - profile/instance card
 - primary Play action with hover and launch state
 - runtime status area
@@ -46,6 +48,9 @@ The renderer is deliberately being built as an Imux-owned layer instead of treat
 | Build | CMake / Gradle | native and JVM build graphs |
 | Future UI/tooling | C# / XAML | optional Windows tooling/prototypes where it provides a concrete advantage |
 | Developer tools | Python | asset processing, validation and generation only |
+| Cross-platform shader foundation | GLSL / WGSL | future OpenGL/WebGPU backends |
+| Local metadata | SQLite | launcher metadata and future cache/index state |
+| Windows tooling | C# / WinUI 3 / XAML | optional native Windows prototypes and integration tooling |
 
 The languages are not mixed arbitrarily. Each layer has a defined boundary and ABI/API.
 
@@ -177,6 +182,12 @@ resolve instance
 ~~~
 
 The current development profile still uses a mock runtime. Real client/runtime integration is a later phase.
+
+## UI design direction
+
+The launcher UI is intentionally product-oriented rather than technology-oriented. Home, Instances and Engine no longer expose the implementation stack as permanent dashboard content. Technology details are grouped under Settings > Advanced. The primary Play action is anchored to the bottom-right action area, and responsive layout calculations are based on the current client bounds rather than fixed desktop coordinates.
+
+The Compose shell uses Material 3 semantics, adaptive sizing, modal navigation and motion. The native prototype mirrors the same interaction model with a custom Imux drawer and explicit hit-testing geometry.
 
 ## Native engine direction
 
