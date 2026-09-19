@@ -14,7 +14,6 @@ set_target_properties(imux_native PROPERTIES OUTPUT_NAME "imux_native")
 
 if (WIN32)
     set(IMUX_GENERATED_ICON "${CMAKE_CURRENT_BINARY_DIR}/imux_icon.ico")
-    set(IMUX_ICON_PATH "${IMUX_GENERATED_ICON}")
     if (NOT EXISTS "${IMUX_GENERATED_ICON}")
         message(FATAL_ERROR "Missing generated Imux icon: ${IMUX_GENERATED_ICON}. Run tools/python/convert_icon.py before configuring the native build.")
     endif()
@@ -22,8 +21,9 @@ if (WIN32)
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/imux_launcher.rc.in"
         "${CMAKE_CURRENT_BINARY_DIR}/imux_launcher.rc"
-        @ONLY
+        COPYONLY
     )
+    file(COPY "${IMUX_GENERATED_ICON}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
 
     add_executable(ImuxLauncher WIN32
         cpp/ImuxLauncher.cpp
