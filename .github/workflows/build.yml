@@ -45,7 +45,7 @@ jobs:
       - name: Prepare Windows icon
         run: |
           python -m pip install --disable-pip-version-check pillow
-          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/imux_icon.ico
+          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/native/imux_icon.ico
       - name: Configure native launcher
         run: cmake -S . -B build/native -A x64
       - name: Build native launcher
@@ -129,7 +129,7 @@ jobs:
       - name: Prepare Windows icon
         run: |
           python -m pip install --disable-pip-version-check pillow
-          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/imux_icon.ico
+          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/native/imux_icon.ico
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
