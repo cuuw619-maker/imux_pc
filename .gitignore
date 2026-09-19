@@ -1,0 +1,15 @@
+.gradle/
+build/
+**/build/
+.idea/
+*.iml
+.vscode/
+cmake-build-*/
+*.dll
+*.exe
+*.obj
+*.o
+target/
+__pycache__/
+*.pyc
+.venv/
