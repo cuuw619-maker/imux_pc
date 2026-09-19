@@ -9,6 +9,16 @@ permissions:
   contents: read
 
 jobs:
+  validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate engine structure
+        run: python tools/python/validate_project.py
+
   jvm:
     runs-on: ubuntu-latest
     steps:
@@ -41,6 +51,7 @@ jobs:
           path: |
             build/native/bin/ImuxLauncher.exe
             build/native/bin/imux_ui.hlsl
+            build/native/bin/imux_world.hlsl
           if-no-files-found: error
 
   rust:
@@ -50,7 +61,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Check Rust workspace
         working-directory: rust
-        run: cargo check --workspace
+        run: cargo test --workspace
 
   windows:
     runs-on: windows-latest
