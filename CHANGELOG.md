@@ -2,12 +2,11 @@
 
 ## 0.0.1 — 2026-09-19
 
-- Rebuilt the Windows launcher around Kotlin and Jetpack Compose Desktop.
-- Reduced the launcher base screen to the single primary ИГРАТЬ action.
-- Removed the old native C++ launcher UI from the production build.
-- Split the game runtime into a dedicated ImuxGame.exe process.
-- Fixed the built-in D3D11 startup path by correcting the feature-level array count passed to D3D11CreateDeviceAndSwapChain.
-- Added fallback startup paths and runtime diagnostics for the native game renderer.
-- Kept the release at 0.0.1 until the project owner explicitly approves the next version.
+- Reset the project to a minimal Windows architecture.
+- Launcher reduced to one Kotlin/JVM application with one main action: ИГРАТЬ.
+- Removed Compose, runtime services, database, Rust and the old Windows UI from the active build.
+- Kept the game as a separate ImuxGame.exe process.
+- Replaced the native renderer bootstrap with a small self-contained Direct3D 11 runtime.
+- Simplified GitHub Actions to one Windows build that produces the launcher, game and combined ZIP artifact.
 
-Versioning rule: do not increment the version until the current release is approved. Each approved release appends only its actual changes to this file and to the launcher metadata.
+Version remains 0.0.1.
