@@ -85,17 +85,18 @@ D2D1_POINT_2F ToDesignPoint(const UiViewport& viewport, float x, float y) {
 }
 
 bool ClientToUiPoint(float x, float y, D2D1_POINT_2F& result) {
-    const float determinant =
-        g_uiTransform._11 * g_uiTransform._22 -
-        g_uiTransform._12 * g_uiTransform._21;
+    if (!g_target) return false;
 
-    if (std::fabs(determinant) < 0.000001f) return false;
+    D2D1_MATRIX_3X2_F transform{};
+    g_target->GetTransform(&transform);
 
-    const float dx = x - g_uiTransform._31;
-    const float dy = y - g_uiTransform._32;
+    if (!D2D1InvertMatrix(&transform)) {
+        Log("Hit-test transform inversion failed");
+        return false;
+    }
 
-    result.x = (dx * g_uiTransform._22 - dy * g_uiTransform._21) / determinant;
-    result.y = (dy * g_uiTransform._11 - dx * g_uiTransform._12) / determinant;
+    result.x = x * transform._11 + y * transform._21 + transform._31;
+    result.y = x * transform._12 + y * transform._22 + transform._32;
     return true;
 }
 
@@ -809,11 +810,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const float y = static_cast<float>(GET_Y_LPARAM(lp));
             RECT rc{};
             GetClientRect(hwnd, &rc);
-            const D2D1_POINT_2F point = [&]() {
-                D2D1_POINT_2F transformed{};
-                ClientToUiPoint(x, y, transformed);
-                return transformed;
-            }();
+            D2D1_POINT_2F point{};
+            if (!ClientToUiPoint(x, y, point)) return 0;
 
             const int headerPage = HeaderPageAt(point.x, point.y);
             if (headerPage >= 0) {
