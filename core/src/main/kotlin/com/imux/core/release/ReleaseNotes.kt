@@ -17,7 +17,10 @@ object ImuxRelease {
                 "Launcher rebuilt around a new responsive launch workspace.",
                 "Play now uses a real game launch boundary instead of a mock process.",
                 "Built-in first-person world remains available as the base game target.",
-                "Changelog and release version are visible directly in the launcher."
+                "Changelog and release version are visible directly in the launcher.",
+                "Unified the Windows launcher around a 1920x1080 design canvas with proportional scaling.",
+                "Aligned mouse hitboxes with the exact rendered layout and added F11 fullscreen."
+
             )
         )
     )
