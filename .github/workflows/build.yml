@@ -45,7 +45,7 @@ jobs:
         run: cmake --build build/native --config Release
 
       - name: Import signing certificate
-        if: ${{ github.event_name != 'pull_request' && secrets.WINDOWS_CERT_PFX_BASE64 != '' && secrets.WINDOWS_CERT_PASSWORD != '' }}
+        if: ${{ github.event_name != 'pull_request' }}
         shell: pwsh
         env:
           WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
