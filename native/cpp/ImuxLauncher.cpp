@@ -61,6 +61,7 @@ float g_motion = 0.0f;
 
 struct Rect {
     float l, t, r, b;
+    Rect() : l(0.0f), t(0.0f), r(0.0f), b(0.0f) {}
     Rect(float left, float top, float right, float bottom) : l(left), t(top), r(right), b(bottom) {}
 };
 
@@ -107,7 +108,10 @@ void SaveEditorJson();
 void RenderEditorOverlay();
 void EditorResetSelected(HWND hwnd);
 EditorItem* FindEditorItem(const std::string& id);
-const EditorItem* FindEditorItem(const std::string& id);
+bool Hit(const Rect& r, float x, float y);
+void Color(float r, float g, float b, float a);
+void Fill(const Rect& r, float radius);
+void Stroke(const Rect& r, float radius, float width);
 Rect EditorVisual(const std::string& id, const Rect& fallback);
 Rect EditorHitbox(const std::string& id, const Rect& fallback);
 
@@ -375,16 +379,16 @@ EditorHandle HitResizeHandle(const Rect& r, float x, float y) {
     const float midX = (r.l + r.r) * 0.5f;
     const float midY = (r.t + r.b) * 0.5f;
 
-    auto near = [handle](float a, float b) { return std::abs(a - b) <= handle; };
+    auto isNear = [handle](float a, float b) { return std::abs(a - b) <= handle; };
 
-    if (near(x, r.l) && near(y, r.t)) return EditorHandle::NW;
-    if (near(x, midX) && near(y, r.t)) return EditorHandle::N;
-    if (near(x, r.r) && near(y, r.t)) return EditorHandle::NE;
-    if (near(x, r.r) && near(y, midY)) return EditorHandle::E;
-    if (near(x, r.r) && near(y, r.b)) return EditorHandle::SE;
-    if (near(x, midX) && near(y, r.b)) return EditorHandle::S;
-    if (near(x, r.l) && near(y, r.b)) return EditorHandle::SW;
-    if (near(x, r.l) && near(y, midY)) return EditorHandle::W;
+    if (isNear(x, r.l) && isNear(y, r.t)) return EditorHandle::NW;
+    if (isNear(x, midX) && isNear(y, r.t)) return EditorHandle::N;
+    if (isNear(x, r.r) && isNear(y, r.t)) return EditorHandle::NE;
+    if (isNear(x, r.r) && isNear(y, midY)) return EditorHandle::E;
+    if (isNear(x, r.r) && isNear(y, r.b)) return EditorHandle::SE;
+    if (isNear(x, midX) && isNear(y, r.b)) return EditorHandle::S;
+    if (isNear(x, r.l) && isNear(y, r.b)) return EditorHandle::SW;
+    if (isNear(x, r.l) && isNear(y, midY)) return EditorHandle::W;
     return EditorHandle::None;
 }
 
