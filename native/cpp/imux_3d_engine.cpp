@@ -11,6 +11,9 @@
 #include <cmath>
 #include <cstring>
 #include <vector>
+#include <fstream>
+#include <cstdarg>
+#include <cstdio>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -30,7 +33,7 @@ struct Vertex {
 struct CameraBuffer {
     XMMATRIX worldViewProjection;
     float time;
-    XMFLOAT3 padding;
+    XMFLOAT3 cameraPosition;
 };
 
 ComPtr<ID3D11Device> g_device;
@@ -54,6 +57,30 @@ float g_yaw = 0.0f;
 float g_pitch = 0.0f;
 XMFLOAT3 g_position{0.0f, 2.0f, 6.0f};
 float g_verticalVelocity = 0.0f;
+float g_moveVelocityX = 0.0f;
+float g_moveVelocityZ = 0.0f;
+float g_walkTime = 0.0f;
+bool g_spaceWasDown = false;
+bool g_comInitialized = false;
+
+void WorldLog(const char* format, ...) {
+    char message[2048]{};
+    va_list args;
+    va_start(args, format);
+    vsnprintf_s(message, sizeof(message), _TRUNCATE, format, args);
+    va_end(args);
+    std::ofstream out("imux.log", std::ios::app);
+    if (out.is_open()) {
+        SYSTEMTIME st{};
+        GetLocalTime(&st);
+        char prefix[64]{};
+        sprintf_s(prefix, "[%02u:%02u:%02u.%03u] ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+        out << prefix << "WORLD: " << message << '\n';
+    }
+    OutputDebugStringA(message);
+    OutputDebugStringA("\n");
+}
+
 POINT g_center{};
 bool g_ignoreMouse = false;
 
@@ -66,7 +93,11 @@ bool CreateTargets() {
     if (!g_swapChain || !g_device) return false;
     ComPtr<ID3D11Texture2D> backBuffer;
     if (FAILED(g_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer)))) return false;
-    if (FAILED(g_device->CreateRenderTargetView(backBuffer.Get(), nullptr, &g_rtv))) return false;
+    hr = g_device->CreateRenderTargetView(backBuffer.Get(), nullptr, &g_rtv);
+    if (FAILED(hr)) {
+        WorldLog("CreateRenderTargetView failed: hr=0x%08lX", static_cast<unsigned long>(hr));
+        return false;
+    }
 
     RECT rc{};
     GetClientRect(g_hwnd, &rc);
@@ -80,8 +111,18 @@ bool CreateTargets() {
     depth.Usage = D3D11_USAGE_DEFAULT;
     depth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
     ComPtr<ID3D11Texture2D> depthTexture;
-    if (FAILED(g_device->CreateTexture2D(&depth, nullptr, &depthTexture))) return false;
-    return SUCCEEDED(g_device->CreateDepthStencilView(depthTexture.Get(), nullptr, &g_dsv));
+    hr = g_device->CreateTexture2D(&depth, nullptr, &depthTexture);
+    if (FAILED(hr)) {
+        WorldLog("Create depth texture failed: hr=0x%08lX", static_cast<unsigned long>(hr));
+        return false;
+    }
+    hr = g_device->CreateDepthStencilView(depthTexture.Get(), nullptr, &g_dsv);
+    if (FAILED(hr)) {
+        WorldLog("CreateDepthStencilView failed: hr=0x%08lX", static_cast<unsigned long>(hr));
+        return false;
+    }
+    WorldLog("Render targets ready: %ux%u", depth.Width, depth.Height);
+    return true;
 }
 
 bool LoadTexture(const wchar_t* path, ComPtr<ID3D11ShaderResourceView>& view) {
@@ -152,27 +193,39 @@ void BuildScene() {
     vb.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(Vertex));
     vb.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     D3D11_SUBRESOURCE_DATA vd{vertices.data(),0,0};
-    g_device->CreateBuffer(&vb, &vd, &g_vertexBuffer);
+    if (FAILED(g_device->CreateBuffer(&vb, &vd, &g_vertexBuffer))) {
+        WorldLog("Create vertex buffer failed");
+        return;
+    }
 
     D3D11_BUFFER_DESC ib{};
     ib.Usage = D3D11_USAGE_DEFAULT;
     ib.ByteWidth = static_cast<UINT>(indices.size() * sizeof(uint32_t));
     ib.BindFlags = D3D11_BIND_INDEX_BUFFER;
     D3D11_SUBRESOURCE_DATA id{indices.data(),0,0};
-    g_device->CreateBuffer(&ib, &id, &g_indexBuffer);
+    if (FAILED(g_device->CreateBuffer(&ib, &id, &g_indexBuffer))) {
+        WorldLog("Create index buffer failed");
+        return;
+    }
 
     D3D11_BUFFER_DESC cb{};
     cb.Usage = D3D11_USAGE_DEFAULT;
     cb.ByteWidth = sizeof(CameraBuffer);
     cb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    g_device->CreateBuffer(&cb, nullptr, &g_constantBuffer);
+    if (FAILED(g_device->CreateBuffer(&cb, nullptr, &g_constantBuffer))) {
+        WorldLog("Create constant buffer failed");
+        return;
+    }
 
     D3D11_SAMPLER_DESC sampler{};
     sampler.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     sampler.ComparisonFunc = D3D11_COMPARISON_NEVER;
     sampler.MaxLOD = D3D11_FLOAT32_MAX;
-    g_device->CreateSamplerState(&sampler, &g_blockSampler);
+    if (FAILED(g_device->CreateSamplerState(&sampler, &g_blockSampler))) {
+        WorldLog("Create sampler state failed");
+        return;
+    }
 
     wchar_t modulePath[MAX_PATH]{};
     GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
@@ -180,7 +233,24 @@ void BuildScene() {
     if (slash) *slash = L'\0';
     wchar_t texturePath[MAX_PATH]{};
     swprintf_s(texturePath, L"%s\\assets\\blocks\\dirt.png", modulePath);
-    LoadTexture(texturePath, g_blockTexture);
+    if (!LoadTexture(texturePath, g_blockTexture)) {
+        WorldLog("dirt texture unavailable: %ls", texturePath);
+        const uint32_t pixel = 0xFF7B5B3F;
+        D3D11_TEXTURE2D_DESC fallbackDesc{};
+        fallbackDesc.Width = 1; fallbackDesc.Height = 1;
+        fallbackDesc.MipLevels = 1; fallbackDesc.ArraySize = 1;
+        fallbackDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        fallbackDesc.SampleDesc.Count = 1;
+        fallbackDesc.Usage = D3D11_USAGE_IMMUTABLE;
+        fallbackDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        D3D11_SUBRESOURCE_DATA fallbackData{&pixel, sizeof(pixel), 0};
+        ComPtr<ID3D11Texture2D> fallbackTexture;
+        if (SUCCEEDED(g_device->CreateTexture2D(&fallbackDesc, &fallbackData, &fallbackTexture))) {
+            g_device->CreateShaderResourceView(fallbackTexture.Get(), nullptr, &g_blockTexture);
+        }
+    } else {
+        WorldLog("loaded dirt texture: %ls", texturePath);
+    }
 }
 
 bool Initialize() {
@@ -198,14 +268,32 @@ bool Initialize() {
     desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
     D3D_FEATURE_LEVEL level{};
-    const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
+    const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0};
     UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
     HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
         creationFlags, levels, 2, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
+    WorldLog("D3D11CreateDeviceAndSwapChain hardware/flip: hr=0x%08lX", static_cast<unsigned long>(hr));
+    if (FAILED(hr)) {
+        g_swapChain.Reset();
+        g_device.Reset();
+        g_context.Reset();
+        desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+        hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+            creationFlags, levels, 2, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
+        WorldLog("D3D11CreateDeviceAndSwapChain hardware/discard: hr=0x%08lX", static_cast<unsigned long>(hr));
+    }
+    if (FAILED(hr)) {
+        g_swapChain.Reset();
+        g_device.Reset();
+        g_context.Reset();
+        hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr,
+            creationFlags, levels, 2, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
+        WorldLog("D3D11CreateDeviceAndSwapChain WARP: hr=0x%08lX", static_cast<unsigned long>(hr));
+    }
     if (FAILED(hr)) return false;
 
     const char* shader = R"(
-cbuffer Camera : register(b0) { matrix worldViewProjection; float time; float3 padding; };
+cbuffer Camera : register(b0) { matrix worldViewProjection; float time; float3 cameraPosition; };
 struct VSInput { float3 position : POSITION; float3 normal : NORMAL; float4 color : COLOR0; float2 uv : TEXCOORD1; };
 struct VSOutput { float4 position : SV_POSITION; float3 normal : NORMAL; float4 color : COLOR0; float3 worldPosition : TEXCOORD0; float2 uv : TEXCOORD1; };
 VSOutput VSMain(VSInput input) {
@@ -224,7 +312,14 @@ float4 PSMain(VSOutput input) {
     float diffuse = saturate(dot(normalize(input.normal),lightDirection))*0.65+0.35;
     float pulse = 0.025 * sin(time * 1.7 + input.worldPosition.x * 0.15);
     float3 texel = blockTexture.Sample(blockSampler, input.uv).rgb;
-    return float4(texel * input.color.rgb * (diffuse + pulse),1.0);
+    float3 lit = texel * input.color.rgb * (diffuse + pulse);
+    float distanceToCamera = distance(input.worldPosition, cameraPosition);
+    float fog = saturate((distanceToCamera - 28.0) / 52.0);
+    float3 atmospheric = float3(0.10, 0.18, 0.22);
+    lit = lerp(lit, atmospheric, fog * 0.58);
+    float edge = pow(1.0 - saturate(dot(normalize(input.normal), normalize(float3(0.2, 0.5, -0.7)))), 3.0);
+    lit += edge * float3(0.04, 0.11, 0.09);
+    return float4(lit,1.0);
 })";
 
     ComPtr<ID3DBlob> vsBlob, psBlob;
@@ -264,25 +359,46 @@ void CaptureMouse(bool capture) {
 }
 
 void UpdateCamera(float dt) {
-    const float speed = (GetAsyncKeyState(VK_SHIFT) & 0x8000) ? 8.0f : 4.5f;
+    const bool sprinting = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    const float speed = sprinting ? 8.0f : 4.5f;
     const float forwardX = std::sin(g_yaw);
     const float forwardZ = -std::cos(g_yaw);
     const float rightX = std::cos(g_yaw);
     const float rightZ = std::sin(g_yaw);
-    float moveX = 0, moveZ = 0;
-    if (GetAsyncKeyState('W') & 0x8000) { moveX += forwardX; moveZ += forwardZ; }
-    if (GetAsyncKeyState('S') & 0x8000) { moveX -= forwardX; moveZ -= forwardZ; }
-    if (GetAsyncKeyState('D') & 0x8000) { moveX += rightX; moveZ += rightZ; }
-    if (GetAsyncKeyState('A') & 0x8000) { moveX -= rightX; moveZ -= rightZ; }
-    float length = std::sqrt(moveX*moveX + moveZ*moveZ);
-    if (length > 0.001f) { moveX/=length; moveZ/=length; }
-    g_position.x += moveX * speed * dt;
-    g_position.z += moveZ * speed * dt;
+    float inputX = 0.0f, inputZ = 0.0f;
+    if (GetAsyncKeyState('W') & 0x8000) { inputX += forwardX; inputZ += forwardZ; }
+    if (GetAsyncKeyState('S') & 0x8000) { inputX -= forwardX; inputZ -= forwardZ; }
+    if (GetAsyncKeyState('D') & 0x8000) { inputX += rightX; inputZ += rightZ; }
+    if (GetAsyncKeyState('A') & 0x8000) { inputX -= rightX; inputZ -= rightZ; }
 
-    if (GetAsyncKeyState(VK_SPACE) & 0x8000 && g_position.y <= 2.001f) g_verticalVelocity = 5.2f;
+    const float inputLength = std::sqrt(inputX * inputX + inputZ * inputZ);
+    if (inputLength > 0.001f) {
+        inputX /= inputLength;
+        inputZ /= inputLength;
+    }
+    const float desiredX = inputX * speed;
+    const float desiredZ = inputZ * speed;
+    const float smoothing = 1.0f - std::exp(-12.0f * dt);
+    g_moveVelocityX += (desiredX - g_moveVelocityX) * smoothing;
+    g_moveVelocityZ += (desiredZ - g_moveVelocityZ) * smoothing;
+    g_position.x += g_moveVelocityX * dt;
+    g_position.z += g_moveVelocityZ * dt;
+
+    const bool moving = std::abs(g_moveVelocityX) + std::abs(g_moveVelocityZ) > 0.08f;
+    if (moving) g_walkTime += dt * (sprinting ? 1.8f : 1.25f);
+
+    const bool spaceDown = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
+    if (spaceDown && !g_spaceWasDown && g_position.y <= 2.001f) g_verticalVelocity = 5.2f;
+    g_spaceWasDown = spaceDown;
     g_verticalVelocity -= 12.0f * dt;
     g_position.y += g_verticalVelocity * dt;
-    if (g_position.y < 2.0f) { g_position.y = 2.0f; g_verticalVelocity = 0; }
+    if (g_position.y < 2.0f) {
+        g_position.y = 2.0f;
+        g_verticalVelocity = 0.0f;
+    }
+
+    g_position.x = std::clamp(g_position.x, -10.5f, 10.5f);
+    g_position.z = std::clamp(g_position.z, -10.5f, 10.5f);
 
     if (g_mouseCaptured) {
         POINT p{};
@@ -290,28 +406,35 @@ void UpdateCamera(float dt) {
         if (!g_ignoreMouse) {
             const float dx = static_cast<float>(p.x - g_center.x);
             const float dy = static_cast<float>(p.y - g_center.y);
-            g_yaw += dx * 0.0025f;
-            g_pitch -= dy * 0.0025f;
+            g_yaw += dx * 0.0023f;
+            g_pitch -= dy * 0.0023f;
             g_pitch = std::clamp(g_pitch, -1.45f, 1.45f);
         }
         g_ignoreMouse = false;
-        SetCursorPos(g_center.x,g_center.y);
+        SetCursorPos(g_center.x, g_center.y);
     }
 }
-
 void RenderFrame() {
     if (!g_context || !g_rtv || !g_dsv) return;
     RECT rc{}; GetClientRect(g_hwnd,&rc);
     float aspect = (rc.bottom > 0) ? static_cast<float>(rc.right)/static_cast<float>(rc.bottom) : 16.0f/9.0f;
-    XMVECTOR eye = XMLoadFloat3(&g_position);
+    XMFLOAT3 renderPosition = g_position;
+    const bool moving = std::abs(g_moveVelocityX) + std::abs(g_moveVelocityZ) > 0.08f;
+    if (moving && g_position.y <= 2.02f) {
+        renderPosition.y += std::abs(std::sin(g_walkTime * 8.0f)) * 0.035f;
+    }
+    XMVECTOR eye = XMLoadFloat3(&renderPosition);
     XMVECTOR direction = XMVectorSet(std::sin(g_yaw)*std::cos(g_pitch),
         std::sin(g_pitch), -std::cos(g_yaw)*std::cos(g_pitch), 0);
     XMVECTOR up = XMVectorSet(0,1,0,0);
     XMMATRIX view = XMMatrixLookToLH(eye,direction,up);
-    XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(70.0f),aspect,0.05f,100.0f);
+    const bool sprinting = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    const float targetFov = sprinting ? 78.0f : 70.0f;
+    XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(targetFov),aspect,0.05f,100.0f);
     CameraBuffer cb{};
     cb.worldViewProjection = XMMatrixTranspose(view * projection);
     cb.time = g_time;
+    cb.cameraPosition = g_position;
     g_context->UpdateSubresource(g_constantBuffer.Get(),0,nullptr,&cb,0,0);
 
     const float clear[4] = {0.045f,0.07f,0.10f,1};
@@ -343,11 +466,31 @@ void RenderFrame() {
 
 extern "C" int imux_world_run(HWND owner) {
     if (g_running) return 1;
-    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    const HRESULT comHr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    g_comInitialized = SUCCEEDED(comHr) || comHr == S_FALSE;
+    WorldLog("CoInitializeEx: hr=0x%08lX", static_cast<unsigned long>(comHr));
+
     g_hwnd = owner;
+    g_time = 0.0f;
+    g_walkTime = 0.0f;
+    g_verticalVelocity = 0.0f;
+    g_moveVelocityX = 0.0f;
+    g_moveVelocityZ = 0.0f;
+    g_spaceWasDown = false;
+    g_position = {0.0f, 2.0f, 6.0f};
+    g_yaw = 0.0f;
+    g_pitch = 0.0f;
+
     g_running = Initialize();
-    if (g_running) CaptureMouse(true);
-    else CoUninitialize();
+    WorldLog("Initialize result: %d", g_running ? 1 : 0);
+    if (g_running) {
+        CaptureMouse(true);
+        WorldLog("World running; mouse captured");
+    } else {
+        if (g_comInitialized) CoUninitialize();
+        g_comInitialized = false;
+        g_hwnd = nullptr;
+    }
     return g_running ? 1 : 0;
 }
 
@@ -380,7 +523,10 @@ extern "C" void imux_world_shutdown(void) {
     g_device.Reset();
     g_running = false;
     g_hwnd = nullptr;
-    CoUninitialize();
+    if (g_comInitialized) {
+        CoUninitialize();
+        g_comInitialized = false;
+    }
 }
 
 extern "C" LRESULT imux_world_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
