@@ -33,6 +33,7 @@ ComPtr<ID3DBlob> g_pixelShader;
 
 bool g_hoverPlay = false;
 bool g_launching = false;
+int g_page = 0;
 
 void Color(float r, float g, float b, float a = 1.0f) {
     g_brush->SetColor(D2D1::ColorF(r, g, b, a));
@@ -80,48 +81,118 @@ void Render(HWND hwnd) {
     Color(0.22f, 0.25f, 0.31f);
     g_target->FillRectangle(D2D1::RectF(sidebar + 1, 0, sidebar + 2, height), g_brush.Get());
 
+    const float contentLeft = sidebar + 54;
+    const float contentRight = width - 54;
+
     Color(0.88f, 0.91f, 0.95f);
-    Text(L"Your game environment", sidebar + 54, 42, width - sidebar - 100, 42, g_title);
-    Color(0.48f, 0.52f, 0.60f);
-    Text(L"One native launcher. One controlled runtime. Your client.",
-        sidebar + 56, 88, width - sidebar - 110, 28, g_body);
-
-    const float cardLeft = sidebar + 54;
-    const float cardRight = width - 54;
-    Color(0.075f, 0.090f, 0.115f);
-    Fill(cardLeft, 142, cardRight, 350, 18);
-
-    Color(0.30f, 0.82f, 0.62f);
-    Text(L"IMUX DEVELOPMENT", cardLeft + 28, 170, 360, 28, g_small);
-    Color(0.93f, 0.95f, 0.98f);
-    Text(L"Default Client", cardLeft + 28, 205, 420, 46, g_title);
-    Color(0.48f, 0.52f, 0.60f);
-    Text(L"Development profile  |  Windows x64",
-        cardLeft + 30, 258, 480, 28, g_body);
-
-    const float buttonLeft = cardRight - 190;
-    const float buttonTop = 218;
-    Color(g_hoverPlay ? 0.36f : 0.30f,
-          g_hoverPlay ? 0.92f : 0.82f,
-          g_hoverPlay ? 0.70f : 0.62f);
-    Fill(buttonLeft, buttonTop, cardRight - 28, buttonTop + 62, 14);
-    Color(0.025f, 0.035f, 0.043f);
-    Text(g_launching ? L"STARTING..." : L"PLAY",
-        buttonLeft + 45, buttonTop + 16, 120, 32, g_button);
-
-    Color(0.060f, 0.075f, 0.095f);
-    Fill(cardLeft, 378, cardRight, 474, 16);
-    Color(0.88f, 0.91f, 0.95f);
-    Text(L"Runtime status", cardLeft + 24, 400, 240, 28, g_body);
-    Color(0.30f, 0.82f, 0.62f);
-    Text(g_launching ? L"Launching development runtime" : L"Ready",
-        cardLeft + 24, 432, 360, 24, g_small);
+    const wchar_t* pageTitle =
+        g_page == 0 ? L"Your game environment" :
+        g_page == 1 ? L"Instances" :
+        g_page == 2 ? L"Engine" : L"Settings";
+    Text(pageTitle, contentLeft, 42, width - sidebar - 100, 42, g_title);
 
     Color(0.48f, 0.52f, 0.60f);
-    Text(L"Native stack", cardLeft, 510, 240, 30, g_body);
+    const wchar_t* pageSubtitle =
+        g_page == 0 ? L"One native launcher. One controlled runtime. Your client." :
+        g_page == 1 ? L"Profiles are isolated launch environments." :
+        g_page == 2 ? L"Native rendering and systems used by the Imux client." :
+                      L"Launcher configuration and runtime diagnostics.";
+    Text(pageSubtitle, contentLeft + 2, 88, width - sidebar - 110, 28, g_body);
+
+    if (g_page == 0) {
+        Color(0.075f, 0.090f, 0.115f);
+        Fill(contentLeft, 142, contentRight, 350, 18);
+
+        Color(0.30f, 0.82f, 0.62f);
+        Text(L"IMUX DEVELOPMENT", contentLeft + 28, 170, 360, 28, g_small);
+        Color(0.93f, 0.95f, 0.98f);
+        Text(L"Default Client", contentLeft + 28, 205, 420, 46, g_title);
+        Color(0.48f, 0.52f, 0.60f);
+        Text(L"Development profile  |  Windows x64",
+            contentLeft + 30, 258, 480, 28, g_body);
+
+        const float buttonLeft = contentRight - 190;
+        const float buttonTop = 218;
+        Color(g_hoverPlay ? 0.36f : 0.30f,
+              g_hoverPlay ? 0.92f : 0.82f,
+              g_hoverPlay ? 0.70f : 0.62f);
+        Fill(buttonLeft, buttonTop, contentRight - 28, buttonTop + 62, 14);
+        Color(0.025f, 0.035f, 0.043f);
+        Text(g_launching ? L"STARTING..." : L"PLAY",
+            buttonLeft + 45, buttonTop + 16, 120, 32, g_button);
+
+        Color(0.060f, 0.075f, 0.095f);
+        Fill(contentLeft, 378, contentRight, 474, 16);
+        Color(0.88f, 0.91f, 0.95f);
+        Text(L"Runtime status", contentLeft + 24, 400, 240, 28, g_body);
+        Color(0.30f, 0.82f, 0.62f);
+        Text(g_launching ? L"Launching development runtime" : L"Ready",
+            contentLeft + 24, 432, 360, 24, g_small);
+    } else if (g_page == 1) {
+        Color(0.075f, 0.090f, 0.115f);
+        Fill(contentLeft, 142, contentRight, 244, 16);
+        Color(0.30f, 0.82f, 0.62f);
+        Text(L"ACTIVE", contentLeft + 24, 164, 120, 24, g_small);
+        Color(0.93f, 0.95f, 0.98f);
+        Text(L"Default Client", contentLeft + 24, 190, 360, 32, g_body);
+        Color(0.48f, 0.52f, 0.60f);
+        Text(L"dev  |  %APPDATA%\\Imux\\instances\\default",
+            contentLeft + 300, 190, contentRight - contentLeft - 324, 28, g_small);
+
+        Color(0.075f, 0.090f, 0.115f);
+        Fill(contentLeft, 264, contentRight, 382, 16);
+        Color(0.88f, 0.91f, 0.95f);
+        Text(L"Runtime", contentLeft + 24, 286, 180, 28, g_body);
+        Color(0.48f, 0.52f, 0.60f);
+        Text(L"Java / process configuration is owned by launcher services.",
+            contentLeft + 24, 322, contentRight - contentLeft - 48, 26, g_body);
+        Text(L"Mods: none   |   Memory: 1024 - 4096 MB   |   Status: ready",
+            contentLeft + 24, 350, contentRight - contentLeft - 48, 26, g_small);
+    } else if (g_page == 2) {
+        const wchar_t* names[] = {L"C++ / Win32", L"Direct2D / DirectWrite", L"D3D11", L"HLSL", L"Rust", L"C / ABI", L"CMake"};
+        const wchar_t* details[] = {
+            L"native window, input and UI runtime",
+            L"2D primitives and typography",
+            L"GPU device and render backend foundation",
+            L"shader library and future GPU effects",
+            L"low-level systems and performance-sensitive code",
+            L"stable native interoperability boundary",
+            L"native build graph and platform targets"
+        };
+        for (int i = 0; i < 7; ++i) {
+            const float y = 142.0f + i * 58.0f;
+            Color(0.075f, 0.090f, 0.115f);
+            Fill(contentLeft, y, contentRight, y + 48, 12);
+            Color(0.30f, 0.82f, 0.62f);
+            Text(names[i], contentLeft + 20, y + 8, 230, 24, g_small);
+            Color(0.62f, 0.66f, 0.73f);
+            Text(details[i], contentLeft + 270, y + 9, contentRight - contentLeft - 290, 24, g_small);
+        }
+    } else {
+        const wchar_t* labels[] = {L"Game directory", L"Java runtime", L"Memory", L"Launcher logs", L"Window"};
+        const wchar_t* values[] = {
+            L"%APPDATA%\\Imux\\instances",
+            L"Detected JVM / configured runtime",
+            L"1024 MB minimum  |  4096 MB maximum",
+            L"%APPDATA%\\Imux\\logs",
+            L"Native Windows / DPI aware"
+        };
+        for (int i = 0; i < 5; ++i) {
+            const float y = 142.0f + i * 72.0f;
+            Color(0.075f, 0.090f, 0.115f);
+            Fill(contentLeft, y, contentRight, y + 60, 14);
+            Color(0.88f, 0.91f, 0.95f);
+            Text(labels[i], contentLeft + 20, y + 10, 220, 24, g_body);
+            Color(0.48f, 0.52f, 0.60f);
+            Text(values[i], contentLeft + 260, y + 12, contentRight - contentLeft - 280, 24, g_small);
+        }
+    }
+
+    Color(0.48f, 0.52f, 0.60f);
+    Text(L"Native stack", contentLeft, 510, 240, 30, g_body);
 
     const wchar_t* chips[] = {L"C++", L"C", L"Rust", L"CMake", L"HLSL", L"C#", L"XAML"};
-    float x = cardLeft;
+    float x = contentLeft;
     for (const auto* chip : chips) {
         const float chipWidth = 92.0f;
         Color(0.085f, 0.105f, 0.135f);
@@ -129,12 +200,12 @@ void Render(HWND hwnd) {
         Color(0.72f, 0.76f, 0.83f);
         Text(chip, x + 14, 559, chipWidth - 20, 22, g_small);
         x += chipWidth + 10;
-        if (x + chipWidth > cardRight) break;
+        if (x + chipWidth > contentRight) break;
     }
 
     Color(0.38f, 0.42f, 0.50f);
     Text(L"Imux UI Engine 0.1  |  Direct2D / DirectWrite  |  D3D11 + HLSL pipeline",
-        cardLeft, std::max(620.0f, height - 42.0f), cardRight - cardLeft, 24, g_small);
+        contentLeft, std::max(620.0f, height - 42.0f), contentRight - contentLeft, 24, g_small);
 
     g_target->EndDraw();
 }
@@ -202,7 +273,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         const float y = static_cast<float>(GET_Y_LPARAM(lp));
         RECT rc{};
         GetClientRect(hwnd, &rc);
-        const bool next = x >= rc.right - 244 && x <= rc.right - 82 &&
+        const bool next = g_page == 0 && x >= rc.right - 244 && x <= rc.right - 82 &&
             y >= 218 && y <= 280;
         if (next != g_hoverPlay) {
             g_hoverPlay = next;
@@ -215,7 +286,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         GetClientRect(hwnd, &rc);
         const float x = static_cast<float>(GET_X_LPARAM(lp));
         const float y = static_cast<float>(GET_Y_LPARAM(lp));
-        if (x >= rc.right - 244 && x <= rc.right - 82 &&
+        const float sidebar = std::clamp(static_cast<float>(rc.right) * 0.20f, 210.0f, 280.0f);
+
+        if (x <= sidebar) {
+            if (y >= 132 && y <= 180) g_page = 0;
+            else if (y >= 182 && y <= 232) g_page = 1;
+            else if (y >= 233 && y <= 283) g_page = 2;
+            else if (y >= 284 && y <= 334) g_page = 3;
+            InvalidateRect(hwnd, nullptr, FALSE);
+            return 0;
+        }
+
+        if (g_page == 0 && x >= rc.right - 244 && x <= rc.right - 82 &&
             y >= 218 && y <= 280) {
             g_launching = true;
             InvalidateRect(hwnd, nullptr, FALSE);
