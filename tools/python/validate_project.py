@@ -42,7 +42,9 @@ checks = {
     "world movement": "GetAsyncKeyState('W')" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8") and "GetCursorPos" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8"),
     "world rendering": "D3D11CreateDeviceAndSwapChain" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8"),
     "release version": 'CURRENT_VERSION = "0.0.1"' in release,
+    "native version": 'kVersion[] = L"0.0.1"' in launcher,
     "changelog page": "Changelog" in (ROOT / "launcher/src/main/kotlin/com/imux/launcher/LauncherApp.kt").read_text(encoding="utf-8"),
+    "version lock": "do not increment the version until the current release is approved" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").lower(),
 }
 
 failed = [name for name, ok in checks.items() if not ok]
