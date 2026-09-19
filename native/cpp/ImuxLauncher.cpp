@@ -26,6 +26,9 @@ namespace {
 constexpr wchar_t kWindowClass[] = L"ImuxLauncherWindow";
 constexpr wchar_t kWindowTitle[] = L"Imux";
 constexpr wchar_t kVersion[] = L"0.0.1";
+constexpr float kDesignWidth = 1920.0f;
+constexpr float kDesignHeight = 1080.0f;
+constexpr float kDesignScale = 0.82f;
 
 ComPtr<ID2D1Factory> g_d2dFactory;
 ComPtr<IDWriteFactory> g_writeFactory;
@@ -46,12 +49,68 @@ std::string g_logPath;
 int g_page = 0;
 bool g_inWorld = false;
 bool g_hoverPlay = false;
+bool g_fullscreen = false;
+WINDOWPLACEMENT g_windowedPlacement{sizeof(WINDOWPLACEMENT)};
+LONG_PTR g_windowedStyle = 0;
+LONG_PTR g_windowedExStyle = 0;
 float g_motion = 0.0f;
 
 struct Rect {
     float l, t, r, b;
     Rect(float left, float top, float right, float bottom) : l(left), t(top), r(right), b(bottom) {}
 };
+
+struct UiViewport {
+    float scale;
+    float offsetX;
+    float offsetY;
+};
+
+UiViewport CalculateUiViewport(float width, float height) {
+    const float fit = std::min(width / kDesignWidth, height / kDesignHeight);
+    const float scale = fit * kDesignScale;
+    return {
+        scale,
+        (width - kDesignWidth * scale) * 0.5f,
+        (height - kDesignHeight * scale) * 0.5f
+    };
+}
+
+D2D1_POINT_2F ToDesignPoint(const UiViewport& viewport, float x, float y) {
+    return D2D1::Point2F(
+        (x - viewport.offsetX) / viewport.scale,
+        (y - viewport.offsetY) / viewport.scale
+    );
+}
+
+struct LauncherLayout {
+    float left;
+    float right;
+    float top;
+    float bottom;
+    bool compact;
+    Rect playRect;
+};
+
+LauncherLayout CalculateLauncherLayout() {
+    constexpr float edge = 44.0f;
+    const float contentW = std::min(1240.0f, std::max(320.0f, kDesignWidth - edge * 2.0f));
+    const float left = (kDesignWidth - contentW) * 0.5f;
+    const float right = left + contentW;
+    const float top = 110.0f;
+    const float bottom = kDesignHeight - 24.0f;
+    const bool compact = contentW < 920.0f;
+    const float heroBottom = std::min(bottom - 170.0f, top + 290.0f);
+    const float cardBottom = compact ? heroBottom : bottom;
+    const float buttonW = std::min(270.0f, contentW - 56.0f);
+    const Rect playRect{
+        left + 28.0f,
+        cardBottom - 82.0f,
+        left + 28.0f + buttonW,
+        cardBottom - 24.0f
+    };
+    return {left, right, top, bottom, compact, playRect};
+}
 
 bool Hit(const Rect& r, float x, float y) {
     return x >= r.l && x <= r.r && y >= r.t && y <= r.b;
@@ -468,18 +527,26 @@ void Render(HWND hwnd) {
     GetClientRect(hwnd, &client);
     const float width = static_cast<float>(client.right);
     const float height = static_cast<float>(client.bottom);
+    const UiViewport viewport = CalculateUiViewport(width, height);
 
     Color(0.028f, 0.034f, 0.044f);
     g_target->Clear(D2D1::ColorF(0.028f, 0.034f, 0.044f));
 
-    RenderHeader(width);
+    g_target->SetTransform(
+        D2D1::Matrix3x2F(
+            viewport.scale, 0.0f,
+            0.0f, viewport.scale,
+            viewport.offsetX, viewport.offsetY
+        )
+    );
 
-    const float edge = width < 1000.0f ? 20.0f : 42.0f;
-    const float contentW = std::min(1240.0f, std::max(320.0f, width - edge * 2.0f));
-    const float left = (width - contentW) * 0.5f;
-    const float right = left + contentW;
-    const float top = 110.0f;
-    const float bottom = std::max(top + 180.0f, height - 24.0f);
+    RenderHeader(kDesignWidth);
+
+    const LauncherLayout layout = CalculateLauncherLayout();
+    const float left = layout.left;
+    const float right = layout.right;
+    const float top = layout.top;
+    const float bottom = layout.bottom;
 
     switch (g_page) {
         case 0: RenderStart(left, right, top, bottom); break;
@@ -489,6 +556,7 @@ void Render(HWND hwnd) {
         default: g_page = 0; RenderStart(left, right, top, bottom); break;
     }
 
+    g_target->SetTransform(D2D1::Matrix3x2F::Identity());
     const HRESULT hr = g_target->EndDraw();
     if (hr == D2DERR_RECREATE_TARGET) {
         g_target.Reset();
@@ -600,7 +668,52 @@ int HeaderPageAt(float x, float y) {
     return index >= 0 && index < 4 ? index : -1;
 }
 
+void ToggleFullscreen(HWND hwnd) {
+    g_fullscreen = !g_fullscreen;
+
+    if (g_fullscreen) {
+        g_windowedStyle = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        g_windowedExStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        g_windowedPlacement.length = sizeof(WINDOWPLACEMENT);
+        GetWindowPlacement(hwnd, &g_windowedPlacement);
+
+        MONITORINFO monitorInfo{sizeof(MONITORINFO)};
+        GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitorInfo);
+
+        SetWindowLongPtrW(hwnd, GWL_STYLE, g_windowedStyle & ~(WS_CAPTION | WS_THICKFRAME));
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, g_windowedExStyle & ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE));
+        SetWindowPos(
+            hwnd,
+            HWND_TOP,
+            monitorInfo.rcMonitor.left,
+            monitorInfo.rcMonitor.top,
+            monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+            monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+            SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW
+        );
+        Log("F11 fullscreen: enabled");
+    } else {
+        SetWindowLongPtrW(hwnd, GWL_STYLE, g_windowedStyle);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, g_windowedExStyle);
+        SetWindowPlacement(hwnd, &g_windowedPlacement);
+        SetWindowPos(
+            hwnd,
+            nullptr,
+            0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW
+        );
+        Log("F11 fullscreen: disabled");
+    }
+
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_KEYDOWN && wp == VK_F11) {
+        ToggleFullscreen(hwnd);
+        return 0;
+    }
+
     if (g_inWorld) {
         if (msg == WM_KEYDOWN && wp == VK_ESCAPE) {
             Log("Escape: leaving base world");
@@ -631,6 +744,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_CREATE:
             Log("WM_CREATE received");
+            g_windowedStyle = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            g_windowedExStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            g_windowedPlacement.length = sizeof(WINDOWPLACEMENT);
+            GetWindowPlacement(hwnd, &g_windowedPlacement);
             InitializeGraphics(hwnd);
             SetTimer(hwnd, 3, 16, nullptr);
             return 0;
@@ -656,19 +773,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const float y = static_cast<float>(GET_Y_LPARAM(lp));
             RECT rc{};
             GetClientRect(hwnd, &rc);
-            const float width = static_cast<float>(rc.right);
-            const float height = static_cast<float>(rc.bottom);
-            const float edge = width < 1000.0f ? 20.0f : 42.0f;
-            const float contentW = std::min(1240.0f, std::max(320.0f, width - edge * 2.0f));
-            const float left = (width - contentW) * 0.5f;
-            const float right = left + contentW;
-            const float top = 110.0f;
-            const float bottom = std::max(top + 180.0f, height - 24.0f);
-            const bool compact = contentW < 920.0f;
-            Rect playRect{left + 28.0f, (compact ? std::min(bottom - 170.0f, top + 290.0f) : bottom) - 82.0f,
-                          left + 28.0f + std::min(270.0f, (compact ? right - left : right - left) - 56.0f),
-                          (compact ? std::min(bottom - 170.0f, top + 290.0f) : bottom) - 24.0f};
-            const bool hover = g_page == 0 && Hit(playRect, x, y);
+            const UiViewport viewport = CalculateUiViewport(
+                static_cast<float>(rc.right),
+                static_cast<float>(rc.bottom)
+            );
+            const D2D1_POINT_2F point = ToDesignPoint(viewport, x, y);
+            const LauncherLayout layout = CalculateLauncherLayout();
+            const bool hover = g_page == 0 && Hit(layout.playRect, point.x, point.y);
             if (hover != g_hoverPlay) {
                 g_hoverPlay = hover;
                 InvalidateRect(hwnd, nullptr, FALSE);
@@ -683,8 +794,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             GetClientRect(hwnd, &rc);
             const float width = static_cast<float>(rc.right);
             const float height = static_cast<float>(rc.bottom);
+            const UiViewport viewport = CalculateUiViewport(width, height);
+            const D2D1_POINT_2F point = ToDesignPoint(viewport, x, y);
 
-            const int headerPage = HeaderPageAt(x, y);
+            const int headerPage = HeaderPageAt(point.x, point.y);
             if (headerPage >= 0) {
                 g_page = headerPage;
                 InvalidateRect(hwnd, nullptr, FALSE);
@@ -692,24 +805,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
 
             if (g_page == 0) {
-                const float edge = width < 1000.0f ? 20.0f : 42.0f;
-                const float contentW = std::min(1240.0f, std::max(320.0f, width - edge * 2.0f));
-                const float left = (width - contentW) * 0.5f;
-                const float right = left + contentW;
-                const float top = 110.0f;
-                const float bottom = std::max(top + 180.0f, height - 24.0f);
-                const bool compact = contentW < 920.0f;
-                const float heroBottom = std::min(bottom - 170.0f, top + 290.0f);
-                const float cardBottom = compact ? heroBottom : bottom;
-                const float buttonW = std::min(270.0f, right - left - 56.0f);
-                const Rect playRect{
-                    left + 28.0f,
-                    cardBottom - 82.0f,
-                    left + 28.0f + buttonW,
-                    cardBottom - 24.0f
-                };
+                const LauncherLayout layout = CalculateLauncherLayout();
 
-                if (Hit(playRect, x, y)) {
+                if (Hit(layout.playRect, point.x, point.y)) {
                     Log("Play clicked");
                     const int externalResult = TryLaunchInstalledGame();
                     if (externalResult == 1) {
@@ -805,8 +903,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        1280,
-        760,
+        1600,
+        900,
         nullptr,
         nullptr,
         instance,
