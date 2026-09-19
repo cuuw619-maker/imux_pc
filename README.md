@@ -1,107 +1,80 @@
 # Imux
 
-Imux is an independent Windows-first Minecraft-like client project built from original code and architecture.
+Windows-first Minecraft-like project built from a minimal two-part architecture.
 
-## Current launcher architecture
+## Architecture
 
-The Windows launcher is Kotlin + Jetpack Compose Desktop. The launcher UI is intentionally minimal at this stage: a single main action, ИГРАТЬ, with an animated background. Navigation, settings, changelog and other product surfaces are deliberately postponed until the base launch flow is stable.
-
-The 3D runtime is a separate ImuxGame.exe. This keeps the launcher UI completely independent from the native renderer while allowing the world engine to evolve separately.
-
-```text
+```
 Imux.exe
-  Kotlin / JVM
-  Jetpack Compose Desktop
-      |
-      +-- launcher state
-      +-- process launch service
-      +-- future instance manager
+  Kotlin / JVM / Swing
+  |
+  +-- one window
+  +-- one ИГРАТЬ button
+  +-- starts ImuxGame.exe
 
 ImuxGame.exe
-  C++20
-  Win32
-  Direct3D 11 / HLSL
-      |
-      +-- window/input
-      +-- first-person camera
-      +-- voxel test scene
-      +-- future world/chunk systems
+  C++20 / Win32 / Direct3D 11
+  |
+  +-- game window
+  +-- WASD + mouse
+  +-- jump
+  +-- small voxel test scene
 ```
 
-## Technology stack
+There are no launcher service layers, database, Rust dependency, Compose dependency, signing step or custom validation framework in the build path.
 
-| Layer | Technology | Purpose |
-| --- | --- | --- |
-| Windows launcher | Kotlin / JVM | application entrypoint and launcher UI |
-| UI | Jetpack Compose Desktop | Windows launcher presentation |
-| Launcher services | Kotlin | configuration, process management and runtime contracts |
-| Game runtime | C++20 | native game process and rendering runtime |
-| Graphics | Direct3D 11 / HLSL | world renderer |
-| Native platform | Win32 | game window and input |
-| Low-level foundation | Rust | future engine and performance-sensitive systems |
-| Build | Gradle / CMake | JVM and native build graphs |
-| Tools | Python | asset conversion and validation |
+## Repository
 
-## Repository layout
-
-```text
-core/                 Kotlin domain models and service contracts
-runtime/              Kotlin filesystem/process/runtime services
-launcher/             Kotlin Compose Windows launcher
-modding/              future mod API boundaries
-
-native/
-  cpp/                ImuxGame runtime
-  c/                  native C ABI foundation
-  include/            native public headers
-  shaders/            world shaders
-  assets/             world assets
-  CMakeLists.txt      native game build graph
-
-rust/                 Rust low-level foundation
-tools/python/         validation and asset tools
-.github/workflows/    CI
+```
+launcher/       Kotlin launcher
+native/         C++ game runtime
+.github/        Windows CI
 ```
 
-## Windows development
+The native asset folder is kept for future world content, but the current renderer does not depend on external assets.
 
-Build the Kotlin launcher distribution:
+## Local build
 
-```text
-gradle :launcher:createDistributable
+Launcher:
+
+```
+gradle :launcher:installDist
 ```
 
-The executable is produced inside the Compose application image:
+Game:
 
-```text
-build/compose/binaries/main/app/Imux/Imux.exe
 ```
-
-Build the native game runtime:
-
-```text
-cmake -S . -B build/native -A x64
+cmake -S native -B build/native -A x64
 cmake --build build/native --config Release
 ```
 
-The game runtime is produced at:
+Game executable:
 
-```text
+```
 build/native/bin/ImuxGame.exe
 ```
 
-For a runnable local distribution, place ImuxGame.exe and the assets directory beside Imux.exe inside the packaged Imux application directory.
+For a local runnable copy, place `ImuxGame.exe` beside the launcher executable.
 
-## Launch flow
+## Windows artifact
 
-The launcher resolves a development profile, locates ImuxGame.exe and starts it as a separate process. The launcher does not render the 3D world itself.
+GitHub Actions builds both programs and packages them together as:
 
-The current base world contains a small test block scene, first-person mouse look, WASD movement, sprint, jump, camera smoothing and basic atmospheric shading. It is an engine bootstrap, not a finished game world.
+```
+imux-windows-x64.zip
+  Imux/
+    Imux.exe
+    ImuxGame.exe
+    lib/
+    runtime/
+```
 
-## CI
+The launcher searches for `ImuxGame.exe` beside itself, from the current directory, and from the local development build directory.
 
-GitHub Actions validates Kotlin, Rust, the native game runtime and the packaged Windows Compose launcher. The Windows artifact contains both Imux.exe and ImuxGame.exe.
+## Current scope
 
-## Release policy
+The launcher deliberately contains only the main screen and the ИГРАТЬ action. Features will be added one at a time after the base build and launch path remain stable.
 
-The project remains on version 0.0.1. The version is not incremented until the current release is explicitly approved.
+The game runtime is an intentionally small Direct3D 11 bootstrap. It is not yet a complete Minecraft implementation.
+
+Version: 0.0.1
