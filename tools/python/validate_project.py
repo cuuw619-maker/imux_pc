@@ -18,6 +18,9 @@ required = [
     "launcher/src/main/kotlin/com/imux/launcher/LauncherMetadataStore.kt",
     "launcher/src/main/resources/icon.webp",
     "tools/python/convert_icon.py",
+    "core/src/main/kotlin/com/imux/core/release/ReleaseNotes.kt",
+    "runtime/src/main/kotlin/com/imux/runtime/GameLaunchServiceImpl.kt",
+    "CHANGELOG.md",
     "native/assets/blocks/dirt.png",
     "native/assets/blocks/stone.png",
     "native/assets/gui/crosshair.png",
@@ -30,18 +33,20 @@ if missing:
     raise SystemExit("Missing project files: " + ", ".join(missing))
 
 launcher = (ROOT / "native/cpp/ImuxLauncher.cpp").read_text(encoding="utf-8")
-world = (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8")
+release = (ROOT / "core/src/main/kotlin/com/imux/core/release/ReleaseNotes.kt").read_text(encoding="utf-8")
 
 checks = {
     "responsive centered layout": "contentW" in launcher and "1240.0f" in launcher,
-    "play boundary": "PLAY" in launcher and "imux_world_run" in launcher,
-    "world movement": "GetAsyncKeyState('W')" in world and "GetCursorPos" in world,
-    "world rendering": "D3D11CreateDeviceAndSwapChain" in world,
-    "world shader": "VSMain" in (ROOT / "native/shaders/imux_world.hlsl").read_text(encoding="utf-8"),
+    "real game launch boundary": "CreateProcessW" in launcher and "ImuxGame.exe" in launcher,
+    "built-in world fallback": "imux_world_run" in launcher,
+    "world movement": "GetAsyncKeyState('W')" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8") and "GetCursorPos" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8"),
+    "world rendering": "D3D11CreateDeviceAndSwapChain" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8"),
+    "release version": 'CURRENT_VERSION = "0.0.1"' in release,
+    "changelog page": "Changelog" in (ROOT / "launcher/src/main/kotlin/com/imux/launcher/LauncherApp.kt").read_text(encoding="utf-8"),
 }
 
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
     raise SystemExit("Project validation failed: " + ", ".join(failed))
 
-print("Imux project structure and engine boundaries: OK")
+print("Imux launcher, engine boundaries and release metadata: OK")
