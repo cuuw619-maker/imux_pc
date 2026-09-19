@@ -894,7 +894,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     std::set_terminate(ImuxTerminate);
 
     Log("wWinMain entered");
-    const HRESULT dpiResult = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    const BOOL dpiResult = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     Log("SetProcessDpiAwarenessContext: result=0x%08lX", static_cast<unsigned long>(dpiResult));
 
     WNDCLASSEXW wc{sizeof(WNDCLASSEXW)};
