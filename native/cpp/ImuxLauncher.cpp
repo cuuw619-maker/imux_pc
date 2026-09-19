@@ -9,6 +9,10 @@
 #include <cstring>
 #include <cmath>
 #include <utility>
+#include <fstream>
+#include <string>
+#include <exception>
+#include <cstdarg>
 #include "imux_3d_engine.h"
 
 #pragma comment(lib, "d2d1.lib")
@@ -30,6 +34,46 @@ ComPtr<IDWriteTextFormat> g_title, g_body, g_small, g_button;
 ComPtr<ID3D11Device> g_d3dDevice;
 ComPtr<ID3D11DeviceContext> g_d3dContext;
 ComPtr<ID3DBlob> g_pixelShader;
+
+std::ofstream g_log;
+std::string g_logPath;
+
+void Log(const char* format, ...) {
+    if (!g_log.is_open()) return;
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+    char message[2048]{};
+    va_list args;
+    va_start(args, format);
+    vsnprintf_s(message, sizeof(message), _TRUNCATE, format, args);
+    va_end(args);
+    g_log << '[' << st.wHour << ':' << st.wMinute << ':' << st.wSecond << '.' << st.wMilliseconds << "] " << message << '\\n';
+    g_log.flush();
+}
+
+LONG WINAPI ImuxUnhandledException(EXCEPTION_POINTERS* info) {
+    const DWORD code = info && info->ExceptionRecord ? info->ExceptionRecord->ExceptionCode : 0;
+    const void* address = info && info->ExceptionRecord ? info->ExceptionRecord->ExceptionAddress : nullptr;
+    Log("FATAL unhandled exception: code=0x%08lX address=%p", static_cast<unsigned long>(code), address);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+void ImuxTerminate() {
+    Log("FATAL std::terminate called");
+    std::abort();
+}
+
+void InitializeLogging() {
+    char cwd[MAX_PATH]{};
+    DWORD length = GetCurrentDirectoryA(MAX_PATH, cwd);
+    g_logPath = length > 0 && length < MAX_PATH ? std::string(cwd) + "\\imux.log" : "imux.log";
+    g_log.open(g_logPath, std::ios::out | std::ios::app);
+    if (g_log.is_open()) {
+        Log("========== Imux launcher start ==========");
+        Log("Working directory: %s", length > 0 ? cwd : ".");
+        Log("Log file: %s", g_logPath.c_str());
+    }
+}
 
 int g_page = 0;
 bool g_drawerOpen = false;
@@ -250,6 +294,7 @@ void Render(HWND hwnd) {
     g_target->EndDraw();
 }
 void InitializeGraphics(HWND hwnd) {
+    Log("InitializeGraphics: begin");
     D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, g_d2dFactory.GetAddressOf());
     DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
         reinterpret_cast<IUnknown**>(g_writeFactory.GetAddressOf()));
@@ -271,8 +316,9 @@ void InitializeGraphics(HWND hwnd) {
         DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 16.0f, L"en-us", &g_button);
 
     D3D_FEATURE_LEVEL featureLevel{};
-    D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+    HRESULT d3dHr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
         nullptr, 0, D3D11_SDK_VERSION, &g_d3dDevice, &featureLevel, &g_d3dContext);
+    Log("D3D11CreateDevice: hr=0x%08lX featureLevel=0x%08lX", static_cast<unsigned long>(d3dHr), static_cast<unsigned long>(featureLevel));
 
     const char* shader = R"(
         struct PSInput { float4 position : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -281,8 +327,10 @@ void InitializeGraphics(HWND hwnd) {
             return float4(0.12 + glow, 0.28 + glow, 0.21 + glow, 1.0);
         }
     )";
-    D3DCompile(shader, strlen(shader), "imux_ui.hlsl", nullptr, nullptr, "main", "ps_5_0",
+    HRESULT shaderHr = D3DCompile(shader, strlen(shader), "imux_ui.hlsl", nullptr, nullptr, "main", "ps_5_0",
         0, 0, &g_pixelShader, nullptr);
+    Log("D3DCompile: hr=0x%08lX", static_cast<unsigned long>(shaderHr));
+    Log("InitializeGraphics: complete");
 }
 
 void SetDrawer(HWND hwnd, bool open) {
@@ -377,7 +425,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         const Rect play{right - 196, height - 60, right, height - 16};
         if (g_page == 0 && Hit(play, x, y)) {
             g_target.Reset(); g_brush.Reset();
+            Log("Play clicked: starting 3D world");
             g_inWorld = imux_world_run(hwnd) != 0;
+            Log("3D world start result: %d", g_inWorld ? 1 : 0);
             if (!g_inWorld) InitializeGraphics(hwnd);
         }
         return 0;
@@ -404,6 +454,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_ERASEBKGND: return 1;
     case WM_DESTROY:
+        Log("WM_DESTROY received; inWorld=%d", g_inWorld ? 1 : 0);
         if (g_inWorld) imux_world_shutdown();
         KillTimer(hwnd, 2); KillTimer(hwnd, 3);
         PostQuitMessage(0);
@@ -414,16 +465,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
+    InitializeLogging();
+    SetUnhandledExceptionFilter(ImuxUnhandledException);
+    std::set_terminate(ImuxTerminate);
+    Log("wWinMain entered");
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     WNDCLASSEXW wc{sizeof(WNDCLASSEXW)};
     wc.hInstance = instance; wc.lpfnWndProc = WndProc; wc.lpszClassName = kWindowClass;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW); wc.hbrBackground = nullptr;
-    RegisterClassExW(&wc);
+    if (!RegisterClassExW(&wc)) Log("RegisterClassExW failed: error=%lu", GetLastError());
     HWND hwnd = CreateWindowExW(0, kWindowClass, kWindowTitle, WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 1280, 760, nullptr, nullptr, instance, nullptr);
-    if (!hwnd) return 1;
+    if (!hwnd) { Log("CreateWindowExW failed: error=%lu", GetLastError()); return 1; }
     // Start maximized so the launcher uses the full available work area on Windows.\n    // The UI itself remains bounded by the live client rectangle and responsive layout.\n    ShowWindow(hwnd, SW_MAXIMIZE); UpdateWindow(hwnd);
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
+    Log("Message loop ended: exitCode=%lld", static_cast<long long>(msg.wParam));
+    Log("========== Imux launcher end ==========");
+    g_log.close();
     return static_cast<int>(msg.wParam);
 }
