@@ -5,6 +5,7 @@
 #include <dxgi.h>
 #include <DirectXMath.h>
 #include <wrl/client.h>
+#include <wincodec.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -23,6 +24,7 @@ struct Vertex {
     XMFLOAT3 position;
     XMFLOAT3 normal;
     XMFLOAT4 color;
+    XMFLOAT2 uv;
 };
 
 struct CameraBuffer {
@@ -42,6 +44,8 @@ ComPtr<ID3D11Buffer> g_constantBuffer;
 ComPtr<ID3D11VertexShader> g_vertexShader;
 ComPtr<ID3D11PixelShader> g_pixelShader;
 ComPtr<ID3D11InputLayout> g_inputLayout;
+ComPtr<ID3D11ShaderResourceView> g_blockTexture;
+ComPtr<ID3D11SamplerState> g_blockSampler;
 HWND g_hwnd = nullptr;
 bool g_running = false;
 bool g_mouseCaptured = false;
@@ -80,6 +84,31 @@ bool CreateTargets() {
     return SUCCEEDED(g_device->CreateDepthStencilView(depthTexture.Get(), nullptr, &g_dsv));
 }
 
+bool LoadTexture(const wchar_t* path, ComPtr<ID3D11ShaderResourceView>& view) {
+    ComPtr<IWICImagingFactory> factory;
+    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)))) return false;
+    ComPtr<IWICBitmapDecoder> decoder;
+    if (FAILED(factory->CreateDecoderFromFilename(path, nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad, &decoder))) return false;
+    ComPtr<IWICBitmapFrameDecode> frame;
+    if (FAILED(decoder->GetFrame(0, &frame))) return false;
+    ComPtr<IWICFormatConverter> converter;
+    if (FAILED(factory->CreateFormatConverter(&converter))) return false;
+    if (FAILED(converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom))) return false;
+    UINT width = 0, height = 0;
+    converter->GetSize(&width, &height);
+    if (width == 0 || height == 0) return false;
+    std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 4);
+    if (FAILED(converter->CopyPixels(nullptr, width * 4, static_cast<UINT>(pixels.size()), pixels.data()))) return false;
+    D3D11_TEXTURE2D_DESC desc{};
+    desc.Width = width; desc.Height = height; desc.MipLevels = 1; desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_IMMUTABLE; desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    D3D11_SUBRESOURCE_DATA data{pixels.data(), width * 4, 0};
+    ComPtr<ID3D11Texture2D> texture;
+    if (FAILED(g_device->CreateTexture2D(&desc, &data, &texture))) return false;
+    return SUCCEEDED(g_device->CreateShaderResourceView(texture.Get(), nullptr, &view));
+}
+
 bool CompileShader(const char* source, const char* entry, const char* profile, ComPtr<ID3DBlob>& blob) {
     UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #ifdef _DEBUG
@@ -106,7 +135,8 @@ void BuildScene() {
         const XMFLOAT3 normals[6] = {{0,0,-1},{0,0,1},{-1,0,0},{1,0,0},{0,1,0},{0,-1,0}};
         for (int f=0; f<6; ++f) {
             uint32_t base = static_cast<uint32_t>(vertices.size());
-            for (int v=0; v<4; ++v) vertices.push_back({p[faces[f][v]], normals[f], color});
+            for (int v=0; v<4; ++v) const XMFLOAT2 uv[4] = {{0,1},{0,0},{1,0},{1,1}};
+            vertices.push_back({p[faces[f][v]], normals[f], color, uv[v]});
             indices.insert(indices.end(), {base,base+1,base+2,base,base+2,base+3});
         }
     };
@@ -136,7 +166,22 @@ void BuildScene() {
     cb.ByteWidth = sizeof(CameraBuffer);
     cb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
     g_device->CreateBuffer(&cb, nullptr, &g_constantBuffer);
-}
+
+    D3D11_SAMPLER_DESC sampler{};
+    sampler.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sampler.MaxLOD = D3D11_FLOAT32_MAX;
+    g_device->CreateSamplerState(&sampler, &g_blockSampler);
+
+    wchar_t modulePath[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
+    wchar_t* slash = wcsrchr(modulePath, L'\\');
+    if (slash) *slash = L'\0';
+    wchar_t texturePath[MAX_PATH]{};
+    swprintf_s(texturePath, L"%s\\assets\\blocks\\dirt.png", modulePath);
+    LoadTexture(texturePath, g_blockTexture);
+}}
 
 bool Initialize() {
     DXGI_SWAP_CHAIN_DESC desc{};
@@ -185,7 +230,8 @@ float4 PSMain(VSOutput input) {
     const D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0},
         {"NORMAL",0,DXGI_FORMAT_R32G32B32_FLOAT,0,12,D3D11_INPUT_PER_VERTEX_DATA,0},
-        {"COLOR",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,24,D3D11_INPUT_PER_VERTEX_DATA,0}
+        {"COLOR",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,24,D3D11_INPUT_PER_VERTEX_DATA,0},
+        {"TEXCOORD",1,DXGI_FORMAT_R32G32_FLOAT,0,40,D3D11_INPUT_PER_VERTEX_DATA,0}
     };
     if (FAILED(g_device->CreateInputLayout(layout,3,vsBlob->GetBufferPointer(),vsBlob->GetBufferSize(),&g_inputLayout))) return false;
     BuildScene();
@@ -282,6 +328,8 @@ void RenderFrame() {
     g_context->VSSetShader(g_vertexShader.Get(),nullptr,0);
     g_context->VSSetConstantBuffers(0,1,g_constantBuffer.GetAddressOf());
     g_context->PSSetShader(g_pixelShader.Get(),nullptr,0);
+    g_context->PSSetShaderResources(0,1,g_blockTexture.GetAddressOf());
+    g_context->PSSetSamplers(0,1,g_blockSampler.GetAddressOf());
     g_context->DrawIndexed(180,0,0);
     g_swapChain->Present(1,0);
 }
@@ -319,6 +367,8 @@ extern "C" void imux_world_shutdown(void) {
     g_inputLayout.Reset();
     g_vertexShader.Reset();
     g_pixelShader.Reset();
+    g_blockTexture.Reset();
+    g_blockSampler.Reset();
     g_context.Reset();
     g_device.Reset();
     g_running = false;
