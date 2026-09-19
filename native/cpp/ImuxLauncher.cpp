@@ -207,7 +207,7 @@ void Render(HWND hwnd) {
 
     Color(0.38f, 0.42f, 0.50f);
     Text(L"Imux UI Engine 0.1  |  Direct2D / DirectWrite  |  D3D11 + HLSL pipeline",
-        contentLeft, std::max(620.0f, height - 42.0f), contentRight - contentLeft, 24, g_small);
+        contentLeft, ((height - 42.0f) > 620.0f ? (height - 42.0f) : 620.0f), contentRight - contentLeft, 24, g_small);
 
     g_target->EndDraw();
 }
