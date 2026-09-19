@@ -1,0 +1,6 @@
+#include <windows.h>
+
+#define IDI_IMUX_ICON 101
+IDI_IMUX_ICON ICON "imux_icon.ico"
+
+1 RT_MANIFEST "imux_game.manifest"
