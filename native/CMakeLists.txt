@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.20)
+project(imux_native LANGUAGES C CXX)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_library(imux_native SHARED cpp/imux_native.cpp c/imux_native_c.c)
+target_include_directories(imux_native PUBLIC include)
+set_target_properties(imux_native PROPERTIES OUTPUT_NAME "imux_native")
