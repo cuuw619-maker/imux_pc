@@ -28,7 +28,7 @@ if (WIN32)
 
     add_executable(ImuxLauncher WIN32
         cpp/ImuxLauncher.cpp
-        cpp/imux_ui_engine.cpp
+        cpp/imux_launcher_functions.cpp
         cpp/imux_3d_engine.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/imux_launcher.rc"
     )

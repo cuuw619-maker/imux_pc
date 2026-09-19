@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <cstdarg>
 #include <exception>
-#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -22,6 +21,7 @@
 #include <sstream>
 #include <utility>
 #include "imux_3d_engine.h"
+#include "imux_launcher_functions.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -53,6 +53,7 @@ int g_page = 0;
 bool g_inWorld = false;
 bool g_hoverPlay = false;
 bool g_fullscreen = false;
+HWND g_mainWindow = nullptr;
 D2D1_MATRIX_3X2_F g_uiTransform = D2D1::Matrix3x2F::Identity();
 WINDOWPLACEMENT g_windowedPlacement{sizeof(WINDOWPLACEMENT)};
 LONG_PTR g_windowedStyle = 0;
@@ -116,55 +117,26 @@ void Stroke(const Rect& r, float radius = 0.0f, float width = 1.0f);
 Rect EditorVisual(const std::string& id, const Rect& fallback);
 Rect EditorHitbox(const std::string& id, const Rect& fallback);
 
-bool ClientToUiPoint(float x, float y, D2D1_POINT_2F& result) {
-    if (!g_target) return false;
-
-    D2D1_MATRIX_3X2_F transform{};
-    g_target->GetTransform(&transform);
-
-    const bool identity =
-        std::abs(transform._11 - 1.0f) < 0.0001f &&
-        std::abs(transform._22 - 1.0f) < 0.0001f &&
-        std::abs(transform._12) < 0.0001f &&
-        std::abs(transform._21) < 0.0001f &&
-        std::abs(transform._31) < 0.0001f &&
-        std::abs(transform._32) < 0.0001f;
-
-    if (identity) {
-        transform = g_uiTransform;
-
-        const bool storedIdentity =
-            std::abs(transform._11 - 1.0f) < 0.0001f &&
-            std::abs(transform._22 - 1.0f) < 0.0001f &&
-            std::abs(transform._12) < 0.0001f &&
-            std::abs(transform._21) < 0.0001f &&
-            std::abs(transform._31) < 0.0001f &&
-            std::abs(transform._32) < 0.0001f;
-
-        if (storedIdentity) {
-            RECT client{};
-            GetClientRect(GetActiveWindow(), &client);
-            const UiViewport viewport = CalculateUiViewport(
-                static_cast<float>(client.right),
-                static_cast<float>(client.bottom)
-            );
-            transform = D2D1::Matrix3x2F(
-                viewport.scale, 0.0f,
-                0.0f, viewport.scale,
-                viewport.offsetX, viewport.offsetY
-            );
-        }
+D2D1_POINT_2F ClientToUiPoint(float x, float y) {
+    RECT client{};
+    if (!g_mainWindow || !GetClientRect(g_mainWindow, &client)) {
+        return D2D1::Point2F(-1.0f, -1.0f);
     }
 
-    if (!D2D1InvertMatrix(&transform)) {
-        Log("Hit-test transform inversion failed");
-        return false;
+    const UiViewport viewport = CalculateUiViewport(
+        static_cast<float>(std::max(1L, client.right)),
+        static_cast<float>(std::max(1L, client.bottom))
+    );
+    if (viewport.scale <= 0.0001f) {
+        return D2D1::Point2F(-1.0f, -1.0f);
     }
 
-    result.x = x * transform._11 + y * transform._21 + transform._31;
-    result.y = x * transform._12 + y * transform._22 + transform._32;
-    return true;
+    return D2D1::Point2F(
+        (x - viewport.offsetX) / viewport.scale,
+        (y - viewport.offsetY) / viewport.scale
+    );
 }
+
 struct LauncherLayout {
     float left;
     float right;
@@ -392,6 +364,15 @@ bool PointInEditorItem(const EditorItem& item, float x, float y) {
 }
 
 EditorItem* FindEditorItemAt(float x, float y) {
+    if (!g_editorSelected.empty()) {
+        if (auto* selected = FindEditorItem(g_editorSelected);
+            selected && EditorItemVisibleOnPage(*selected)) {
+            if (HitResizeHandle(EditorActiveRect(*selected), x, y) != EditorHandle::None) {
+                return selected;
+            }
+        }
+    }
+
     for (auto it = g_editorItems.rbegin(); it != g_editorItems.rend(); ++it) {
         if (!EditorItemVisibleOnPage(*it)) continue;
         if (PointInEditorItem(*it, x, y)) return &(*it);
@@ -566,71 +547,6 @@ void PlayGlyph(float x, float y, float size) {
     Line(x - size * 0.22f, y + size * 0.33f, x - size * 0.22f, y - size * 0.33f, 3.0f);
 }
 
-std::filesystem::path AppDataRoot() {
-    wchar_t buffer[32768]{};
-    const DWORD capacity = static_cast<DWORD>(sizeof(buffer) / sizeof(buffer[0]));
-    const DWORD length = GetEnvironmentVariableW(L"APPDATA", buffer, capacity);
-    if (length == 0 || length >= capacity) return {};
-    return std::filesystem::path(buffer) / L"Imux";
-}
-
-std::filesystem::path FindGameExecutable() {
-    const auto appData = AppDataRoot();
-    const std::filesystem::path current = std::filesystem::current_path();
-
-    const std::vector<std::filesystem::path> candidates = {
-        current / L"ImuxGame.exe",
-        appData / L"game" / L"ImuxGame.exe",
-        appData / L"instances" / L"default" / L"ImuxGame.exe",
-        appData / L"instances" / L"default" / L"game" / L"ImuxGame.exe"
-    };
-
-    for (const auto& candidate : candidates) {
-        std::error_code ec;
-        if (std::filesystem::is_regular_file(candidate, ec)) return candidate;
-    }
-    return {};
-}
-
-int TryLaunchInstalledGame() {
-    const auto executable = FindGameExecutable();
-    if (executable.empty()) return 0;
-
-    STARTUPINFOW startup{};
-    startup.cb = sizeof(startup);
-    PROCESS_INFORMATION processInfo{};
-    std::wstring commandLine = L"\"" + executable.wstring() + L"\"";
-    std::vector<wchar_t> mutableCommand(commandLine.begin(), commandLine.end());
-    mutableCommand.push_back(L'\0');
-
-    const std::wstring workingDirectory = executable.parent_path().wstring();
-    const BOOL started = CreateProcessW(
-        executable.c_str(),
-        mutableCommand.data(),
-        nullptr,
-        nullptr,
-        FALSE,
-        CREATE_NEW_PROCESS_GROUP,
-        nullptr,
-        workingDirectory.c_str(),
-        &startup,
-        &processInfo
-    );
-
-    if (!started) {
-        Log("External game launch failed: error=%lu path=%ls", GetLastError(), executable.c_str());
-        return -1;
-    }
-
-    Log("External game started: pid=%lu path=%ls",
-        static_cast<unsigned long>(processInfo.dwProcessId),
-        executable.c_str());
-
-    CloseHandle(processInfo.hThread);
-    CloseHandle(processInfo.hProcess);
-    return 1;
-}
-
 void RenderHeader(float width) {
     Color(0.035f, 0.043f, 0.055f);
     Fill({0.0f, 0.0f, width, 84.0f});
@@ -696,7 +612,7 @@ void RenderLaunchCard(const Rect& box) {
     Color(0.48f, 0.54f, 0.62f);
     Text(L"Guest profile", {box.l + 31.0f, box.t + 110.0f, box.r - 30.0f, box.t + 135.0f}, g_body);
 
-    const auto executable = FindGameExecutable();
+    const auto executable = imux_launcher_find_game_executable();
     const bool external = !executable.empty();
 
     Color(0.10f, 0.13f, 0.16f);
@@ -725,15 +641,30 @@ void RenderLaunchCard(const Rect& box) {
     const float bx = buttonRect.l;
     const float by = buttonRect.t;
     const float buttonW = RectWidth(buttonRect);
+    const float buttonH = RectHeight(buttonRect);
+    const float centerY = (buttonRect.t + buttonRect.b) * 0.5f;
+    const float glyphSize = std::max(14.0f, std::min(24.0f, buttonH * 0.34f));
+    const float radius = std::max(8.0f, std::min(24.0f, buttonH * 0.34f));
     Color(
         g_hoverPlay ? 0.62f : 0.52f,
         g_hoverPlay ? 1.00f : 0.96f,
         g_hoverPlay ? 0.82f : 0.74f
     );
-    Fill({bx, by, bx + buttonW, by + 58.0f}, 20.0f);
-    PlayGlyph(bx + 31.0f, by + 29.0f, 20.0f);
+    Fill(buttonRect, radius);
+    PlayGlyph(
+        bx + std::max(20.0f, std::min(31.0f, buttonW * 0.12f)),
+        centerY,
+        glyphSize
+    );
     Color(0.035f, 0.055f, 0.05f);
-    Text(L"PLAY", {bx + 55.0f, by + 16.0f, bx + buttonW - 18.0f, by + 43.0f}, g_button);
+    Text(
+        L"PLAY",
+        {bx + std::max(42.0f, std::min(55.0f, buttonW * 0.20f)),
+         by + buttonH * 0.24f,
+         bx + buttonW - 18.0f,
+         by + buttonH * 0.76f},
+        g_button
+    );
 }
 
 void RenderReleaseCard(const Rect& box) {
@@ -872,7 +803,7 @@ void RenderSettings(float left, float right, float top, float bottom) {
     const float y0 = top + 96.0f;
     const float rowH = 66.0f;
     const wchar_t* labels[] = {L"Version", L"Launcher log", L"Game data"};
-    const std::wstring appData = AppDataRoot().wstring();
+    const std::wstring appData = imux_launcher_app_data_root().wstring();
     const std::wstring gameData = appData.empty() ? L"%APPDATA%\\Imux" : appData;
     const std::wstring logPath = g_logPath.empty() ? L"imux.log" : std::wstring(g_logPath.begin(), g_logPath.end());
     const std::wstring values[] = {kVersion, logPath, gameData};
@@ -982,6 +913,8 @@ void InitializeGraphics(HWND hwnd) {
     );
     Log("CreateHwndRenderTarget: hr=0x%08lX", static_cast<unsigned long>(hr));
     if (FAILED(hr)) return;
+
+    g_target->SetDpi(96.0f, 96.0f);
 
     hr = g_target->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), &g_brush);
     Log("CreateSolidColorBrush: hr=0x%08lX", static_cast<unsigned long>(hr));
@@ -1157,6 +1090,7 @@ bool HandleEditorKey(HWND hwnd, WPARAM wp, LPARAM lp) {
 }
 
 void BeginEditorDrag(HWND hwnd, float x, float y) {
+    if (x < 0.0f || y < 0.0f || x > kDesignWidth || y > kDesignHeight) return;
     InitializeEditorItems();
 
     EditorItem* item = FindEditorItemAt(x, y);
@@ -1179,6 +1113,7 @@ void BeginEditorDrag(HWND hwnd, float x, float y) {
 
 void UpdateEditorDrag(HWND hwnd, float x, float y) {
     if (!g_editorDragging) return;
+    if (x < 0.0f || y < 0.0f || x > kDesignWidth || y > kDesignHeight) return;
 
     auto* item = FindEditorItem(g_editorSelected);
     if (!item) return;
@@ -1258,19 +1193,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (g_editorMode && !g_inWorld) {
         switch (msg) {
             case WM_LBUTTONDOWN: {
-                D2D1_POINT_2F point{};
-                if (ClientToUiPoint(static_cast<float>(GET_X_LPARAM(lp)), static_cast<float>(GET_Y_LPARAM(lp)), point)) {
-                    BeginEditorDrag(hwnd, point.x, point.y);
-                }
+                D2D1_POINT_2F point = ClientToUiPoint(
+                    static_cast<float>(GET_X_LPARAM(lp)),
+                    static_cast<float>(GET_Y_LPARAM(lp))
+                );
+                BeginEditorDrag(hwnd, point.x, point.y);
                 return 0;
             }
 
             case WM_MOUSEMOVE: {
-                D2D1_POINT_2F point{};
-                if (ClientToUiPoint(static_cast<float>(GET_X_LPARAM(lp)), static_cast<float>(GET_Y_LPARAM(lp)), point)) {
-                    if (g_editorDragging) {
-                        UpdateEditorDrag(hwnd, point.x, point.y);
-                    }
+                D2D1_POINT_2F point = ClientToUiPoint(
+                    static_cast<float>(GET_X_LPARAM(lp)),
+                    static_cast<float>(GET_Y_LPARAM(lp))
+                );
+                if (g_editorDragging) {
+                    UpdateEditorDrag(hwnd, point.x, point.y);
                 }
                 return 0;
             }
@@ -1311,6 +1248,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_CREATE:
             Log("WM_CREATE received");
+            g_mainWindow = hwnd;
             g_windowedStyle = GetWindowLongPtrW(hwnd, GWL_STYLE);
             g_windowedExStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             g_windowedPlacement.length = sizeof(WINDOWPLACEMENT);
@@ -1344,8 +1282,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_MOUSEMOVE: {
             const float x = static_cast<float>(GET_X_LPARAM(lp));
             const float y = static_cast<float>(GET_Y_LPARAM(lp));
-            D2D1_POINT_2F point{};
-            if (!ClientToUiPoint(x, y, point)) return 0;
+            D2D1_POINT_2F point = ClientToUiPoint(x, y);
             const LauncherLayout layout = CalculateLauncherLayout();
             const bool hover = g_page == 0 && Hit(EditorHitbox("start.play", layout.playRect), point.x, point.y);
             if (hover != g_hoverPlay) {
@@ -1358,8 +1295,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_LBUTTONUP: {
             const float x = static_cast<float>(GET_X_LPARAM(lp));
             const float y = static_cast<float>(GET_Y_LPARAM(lp));
-            D2D1_POINT_2F point{};
-            if (!ClientToUiPoint(x, y, point)) return 0;
+            D2D1_POINT_2F point = ClientToUiPoint(x, y);
 
             const int headerPage = HeaderPageAt(point.x, point.y);
             if (headerPage >= 0) {
@@ -1373,7 +1309,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
                 if (Hit(EditorHitbox("start.play", layout.playRect), point.x, point.y)) {
                     Log("Play clicked");
-                    const int externalResult = TryLaunchInstalledGame();
+                    const int externalResult = imux_launcher_try_launch_game();
                     if (externalResult == 1) {
                         Log("Play target: installed executable");
                         return 0;
