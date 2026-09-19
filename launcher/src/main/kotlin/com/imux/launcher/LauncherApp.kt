@@ -23,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,10 +35,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.imux.core.service.ConfigRepository
+import com.imux.core.model.InstallationProfile
 import com.imux.core.service.GameLaunchService
 import com.imux.runtime.GameLaunchServiceImpl
-import com.imux.runtime.JsonConfigRepository
 import kotlinx.coroutines.launch
 
 private val Background = Color(0xFF070B10)
@@ -59,21 +57,18 @@ fun LauncherApp() {
             onSurface = TextPrimary
         )
     ) {
-        val repository: ConfigRepository = remember { JsonConfigRepository() }
         val gameLauncher: GameLaunchService = remember { GameLaunchServiceImpl() }
         val scope = rememberCoroutineScope()
-
-        var profileReady by remember { mutableStateOf(false) }
-        var launching by remember { mutableStateOf(false) }
-
-        LaunchedEffect(Unit) {
-            profileReady = runCatching {
-                val config = repository.load()
-                config.installations.firstOrNull { it.id == config.selectedInstallationId }
-                    ?: config.installations.firstOrNull()
-                    ?: error("No installation")
-            }.isSuccess
+        val profile = remember {
+            InstallationProfile(
+                id = "default",
+                name = "Imux",
+                version = "dev",
+                gameDir = "instances/default"
+            )
         }
+
+        var launching by remember { mutableStateOf(false) }
 
         Box(Modifier.fillMaxSize()) {
             AnimatedBackdrop()
@@ -84,16 +79,12 @@ fun LauncherApp() {
                     scope.launch {
                         launching = true
                         runCatching {
-                            val config = repository.load()
-                            val profile = config.installations.firstOrNull { it.id == config.selectedInstallationId }
-                                ?: config.installations.firstOrNull()
-                                ?: error("No installation")
                             gameLauncher.launch(profile)
                         }
                         launching = false
                     }
                 },
-                enabled = profileReady && !launching,
+                enabled = !launching,
                 modifier = Modifier
                     .width(300.dp)
                     .height(72.dp)
