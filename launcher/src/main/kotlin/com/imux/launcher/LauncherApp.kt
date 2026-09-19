@@ -89,10 +89,10 @@ import androidx.compose.ui.unit.dp
 import com.imux.core.model.InstallationProfile
 import com.imux.core.service.ConfigRepository
 import com.imux.core.service.GameLaunchService
-import com.imux.core.service.JsonConfigRepository
-import com.imux.core.service.MockGameLaunchService
 import com.imux.core.service.RuntimeValidator
-import com.imux.core.service.RuntimeValidatorImpl
+import com.imux.runtime.JsonConfigRepository
+import com.imux.runtime.MockGameLaunchService
+import com.imux.runtime.RuntimeValidatorImpl
 import com.imux.core.state.LauncherUiState
 import com.imux.runtime.ImuxPaths
 import com.imux.runtime.LauncherMetadataStore
