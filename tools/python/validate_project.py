@@ -38,11 +38,12 @@ cmake = (ROOT / "native/CMakeLists.txt").read_text(encoding="utf-8")
 game = (ROOT / "native/cpp/ImuxGame.cpp").read_text(encoding="utf-8")
 world = (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8")
 release = (ROOT / "core/src/main/kotlin/com/imux/core/release/ReleaseNotes.kt").read_text(encoding="utf-8")
+workflow = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
 
 checks = {
     "kotlin compose launcher": "fun LauncherApp()" in launcher and "Button(" in launcher and "AnimatedBackdrop" in launcher,
-    "minimal launcher ui": "Text("ИГРАТЬ"" in launcher and "SettingsPage" not in launcher and "enum class Page" not in launcher,
-    "compose windows exe": "TargetFormat.Exe" in gradle and "createDistributable" in (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8"),
+    "minimal launcher ui": 'Text("ИГРАТЬ")' in launcher and "SettingsPage" not in launcher and "enum class Page" not in launcher,
+    "compose windows exe": "TargetFormat.Exe" in gradle and "createDistributable" in workflow,
     "dedicated game target": "add_executable(ImuxGame WIN32" in cmake and "cpp/ImuxGame.cpp" in cmake and "cpp/ImuxLauncher.cpp" not in cmake,
     "game launch path": "ImuxGame.exe" in runtime,
     "d3d feature level argument": "creationFlags, levels, 1, D3D11_SDK_VERSION" in world,
