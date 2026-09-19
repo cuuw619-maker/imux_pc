@@ -24,6 +24,7 @@ if (WIN32)
         COPYONLY
     )
     file(COPY "${IMUX_GENERATED_ICON}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/imux_launcher.manifest" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
 
     add_executable(ImuxLauncher WIN32
         cpp/ImuxLauncher.cpp
