@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +25,7 @@ import com.imux.core.state.LauncherUiState
 import com.imux.runtime.*
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LauncherApp() {
     val scheme = darkColorScheme(
@@ -77,13 +79,13 @@ fun LauncherApp() {
                         Page.Engine -> EngineScreen()
                         Page.Settings -> SettingsScreen()
                     }
-                    AnimatedVisibility(visible = drawer, enter = fadeIn(), exit = fadeOut()) {
+                    androidx.compose.animation.AnimatedVisibility(visible = drawer, enter = fadeIn(), exit = fadeOut()) {
                         Box(
                             Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f))
                                 .clickable { drawer = false }
                         )
                     }
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = drawer,
                         enter = slideInHorizontally { -it } + fadeIn(),
                         exit = slideOutHorizontally { -it } + fadeOut()
