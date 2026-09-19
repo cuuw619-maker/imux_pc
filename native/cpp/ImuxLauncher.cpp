@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include <windows.h>
 #include <windowsx.h>
 #include <d2d1.h>
@@ -74,7 +75,10 @@ void InitializeLogging() {
     }
 }
 
-struct Rect { float l, t, r, b; };
+struct Rect {
+    float l, t, r, b;
+    Rect(float left, float top, float right, float bottom) : l(left), t(top), r(right), b(bottom) {}
+};
 bool Hit(const Rect& r, float x, float y) { return x >= r.l && x <= r.r && y >= r.t && y <= r.b; }
 float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 float Clamp(float value, float lo, float hi) { return std::max(lo, std::min(value, hi)); }
@@ -141,12 +145,12 @@ void Icon(int kind, float x, float y, float size, bool active = false) {
 
 void PlayGlyph(float x, float y, float size) {
     Color(0.035f, 0.055f, 0.050f);
-    D2D1_POINT_2F p[3] = {
-        {x - size*.22f, y - size*.34f},
-        {x + size*.34f, y},
-        {x - size*.22f, y + size*.34f}
-    };
-    g_target->FillTriangle(p[0], p[1], p[2], g_brush.Get());
+    const D2D1_POINT_2F p0 = D2D1::Point2F(x - size*.22f, y - size*.34f);
+    const D2D1_POINT_2F p1 = D2D1::Point2F(x + size*.34f, y);
+    const D2D1_POINT_2F p2 = D2D1::Point2F(x - size*.22f, y + size*.34f);
+    g_target->DrawLine(p0, p1, g_brush.Get(), 3.0f);
+    g_target->DrawLine(p1, p2, g_brush.Get(), 3.0f);
+    g_target->DrawLine(p2, p0, g_brush.Get(), 3.0f);
 }
 
 void RenderHeader(float width, float height) {
@@ -248,10 +252,6 @@ void RenderHome(float left, float right, float top, float bottom) {
         Text(L"ONLINE", {sideL+38,bottom-49,sideL+120,bottom-28},g_label);
     }
 
-    const float statsY = bottom+18;
-    if (statsY < height) {
-        // Reserved by the caller only when there is room; kept out of the main card.
-    }
 }
 
 void RenderListPage(int page, float left, float right, float top, float bottom) {
@@ -332,6 +332,8 @@ void RenderDrawer(float width, float height) {
     Color(0.37f,0.42f,0.50f);
     Text(L"Guest  •  Without account",{x+30,height-56,x+drawerW-18,height-30},g_label);
 }
+
+void InitializeGraphics(HWND hwnd);
 
 void Render(HWND hwnd) {
     if (!g_target) return;
