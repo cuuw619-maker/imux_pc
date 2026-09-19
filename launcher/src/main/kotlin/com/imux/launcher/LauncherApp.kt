@@ -159,7 +159,7 @@ private fun HomeScreen(state: LauncherUiState, onPlay: () -> Unit) {
             } else {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Box(Modifier.weight(1.6f)) { ProfileCard(profile, state) }
-                    QuickStatus()
+                    QuickStatus(Modifier.weight(1f))
                 }
             }
 
@@ -221,8 +221,8 @@ private fun ProfileCard(profile: InstallationProfile?, state: LauncherUiState) {
 }
 
 @Composable
-private fun QuickStatus() {
-    Card(Modifier.weight(1f).fillMaxHeight(), shape = RoundedCornerShape(28.dp)) {
+private fun QuickStatus(modifier: Modifier = Modifier) {
+    Card(modifier.fillMaxHeight(), shape = RoundedCornerShape(28.dp)) {
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Text("Quick status", style = MaterialTheme.typography.titleMedium)
             StatusLine("Runtime", "Java 21")
