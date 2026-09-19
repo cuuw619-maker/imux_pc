@@ -214,10 +214,10 @@ void CaptureMouse(bool capture) {
 
 void UpdateCamera(float dt) {
     const float speed = (GetAsyncKeyState(VK_SHIFT) & 0x8000) ? 8.0f : 4.5f;
-    const float forwardX = std::sinf(g_yaw);
-    const float forwardZ = -std::cosf(g_yaw);
-    const float rightX = std::cosf(g_yaw);
-    const float rightZ = std::sinf(g_yaw);
+    const float forwardX = std::sin(g_yaw);
+    const float forwardZ = -std::cos(g_yaw);
+    const float rightX = std::cos(g_yaw);
+    const float rightZ = std::sin(g_yaw);
     float moveX = 0, moveZ = 0;
     if (GetAsyncKeyState('W') & 0x8000) { moveX += forwardX; moveZ += forwardZ; }
     if (GetAsyncKeyState('S') & 0x8000) { moveX -= forwardX; moveZ -= forwardZ; }
@@ -253,8 +253,8 @@ void RenderFrame() {
     RECT rc{}; GetClientRect(g_hwnd,&rc);
     float aspect = (rc.bottom > 0) ? static_cast<float>(rc.right)/static_cast<float>(rc.bottom) : 16.0f/9.0f;
     XMVECTOR eye = XMLoadFloat3(&g_position);
-    XMVECTOR direction = XMVectorSet(std::sinf(g_yaw)*std::cos(g_pitch),
-        std::sinf(g_pitch), -std::cosf(g_yaw)*std::cos(g_pitch), 0);
+    XMVECTOR direction = XMVectorSet(std::sin(g_yaw)*std::cos(g_pitch),
+        std::sin(g_pitch), -std::cos(g_yaw)*std::cos(g_pitch), 0);
     XMVECTOR up = XMVectorSet(0,1,0,0);
     XMMATRIX view = XMMatrixLookToLH(eye,direction,up);
     XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(70.0f),aspect,0.05f,100.0f);
