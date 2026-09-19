@@ -47,13 +47,13 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path "build/package" | Out-Null
 
-          jpackage \
-            --type app-image \
-            --name Imux \
-            --app-version 0.0.1 \
-            --input $lib \
-            --main-jar $mainJar.Name \
-            --main-class com.imux.launcher.MainKt \
+          jpackage `
+            --type app-image `
+            --name Imux `
+            --app-version 0.0.1 `
+            --input $lib `
+            --main-jar $mainJar.Name `
+            --main-class com.imux.launcher.MainKt `
             --dest "build/package"
 
           $app = "build/package/Imux"
