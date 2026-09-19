@@ -109,9 +109,10 @@ void RenderEditorOverlay();
 void EditorResetSelected(HWND hwnd);
 EditorItem* FindEditorItem(const std::string& id);
 bool Hit(const Rect& r, float x, float y);
-void Color(float r, float g, float b, float a);
-void Fill(const Rect& r, float radius);
-void Stroke(const Rect& r, float radius, float width);
+void Color(float r, float g, float b, float a = 1.0f);
+void Text(const wchar_t* value, const Rect& r, const ComPtr<IDWriteTextFormat>& format);
+void Fill(const Rect& r, float radius = 0.0f);
+void Stroke(const Rect& r, float radius = 0.0f, float width = 1.0f);
 Rect EditorVisual(const std::string& id, const Rect& fallback);
 Rect EditorHitbox(const std::string& id, const Rect& fallback);
 
@@ -245,13 +246,6 @@ void ClampEditorRect(Rect& r) {
 
 EditorItem* FindEditorItem(const std::string& id) {
     for (auto& item : g_editorItems) {
-        if (item.id == id) return &item;
-    }
-    return nullptr;
-}
-
-const EditorItem* FindEditorItem(const std::string& id) {
-    for (const auto& item : g_editorItems) {
         if (item.id == id) return &item;
     }
     return nullptr;
