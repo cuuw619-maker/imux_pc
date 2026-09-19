@@ -1,0 +1,65 @@
+name: Build Imux
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  jvm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Test
+        run: gradle test
+      - name: Build modules
+        run: gradle build -x :launcher:compileKotlinDesktop
+
+  native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure CMake
+        run: cmake -S native -B native/build -A x64
+      - name: Build native library
+        run: cmake --build native/build --config Release
+
+  rust:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check Rust workspace
+        working-directory: rust
+        run: cargo check --workspace
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Test
+        run: gradle test
+      - name: Build Windows distribution
+        run: gradle :launcher:createReleaseDistributable :launcher:packageReleaseExe
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: imux-windows-x64
+          path: |
+            launcher/build/compose/binaries/main-release/app/**
+            launcher/build/compose/binaries/main-release/exe/*.exe
+          if-no-files-found: warn
