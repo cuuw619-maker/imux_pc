@@ -59,6 +59,7 @@ WINDOWPLACEMENT g_windowedPlacement{sizeof(WINDOWPLACEMENT)};
 LONG_PTR g_windowedStyle = 0;
 LONG_PTR g_windowedExStyle = 0;
 float g_motion = 0.0f;
+float g_pageAnim = 1.0f;
 
 struct Rect {
     float l, t, r, b;
@@ -147,16 +148,16 @@ struct LauncherLayout {
 };
 
 LauncherLayout CalculateLauncherLayout() {
-    constexpr float edge = 44.0f;
-    const float contentW = std::min(1240.0f, std::max(320.0f, kDesignWidth - edge * 2.0f));
+    constexpr float edge = 32.0f;
+    const float contentW = std::min(1540.0f, std::max(520.0f, kDesignWidth - edge * 2.0f));
     const float left = (kDesignWidth - contentW) * 0.5f;
     const float right = left + contentW;
-    const float top = 110.0f;
-    const float bottom = kDesignHeight - 24.0f;
-    const bool compact = contentW < 920.0f;
-    const float heroBottom = std::min(bottom - 170.0f, top + 290.0f);
+    const float top = 102.0f;
+    const float bottom = kDesignHeight - 20.0f;
+    const bool compact = contentW < 980.0f;
+    const float heroBottom = std::min(bottom - 170.0f, top + 304.0f);
     const float cardBottom = compact ? heroBottom : bottom;
-    const float buttonW = std::min(270.0f, contentW - 56.0f);
+    const float buttonW = std::min(300.0f, contentW - 56.0f);
     const Rect playRect{
         left + 28.0f,
         cardBottom - 82.0f,
@@ -173,6 +174,7 @@ struct EditorItem {
     Rect hitbox;
     Rect defaultVisual;
     Rect defaultHitbox;
+    bool hitboxLinked;
 
     EditorItem(std::string itemId, int itemPage, Rect visualRect, Rect hitboxRect)
         : id(std::move(itemId)),
@@ -180,7 +182,8 @@ struct EditorItem {
           visual(visualRect),
           hitbox(hitboxRect),
           defaultVisual(visualRect),
-          defaultHitbox(hitboxRect) {}
+          defaultHitbox(hitboxRect),
+          hitboxLinked(true) {}
 };
 
 std::vector<EditorItem> g_editorItems;
@@ -261,13 +264,13 @@ void InitializeEditorItems() {
     AddEditorItem("start.title", 0, {340.0f, layout.top, 1580.0f, layout.top + 45.0f});
     AddEditorItem("start.subtitle", 0, {340.0f, layout.top + 48.0f, 1580.0f, layout.top + 74.0f});
 
-    const bool compact = available < 920.0f;
+    const bool compact = available < 980.0f;
     if (compact) {
         const float heroBottom = std::min(layout.bottom - 170.0f, contentTop + 290.0f);
         AddEditorItem("start.launch.card", 0, {layout.left, contentTop, layout.right, heroBottom});
         AddEditorItem("start.release.card", 0, {layout.left, heroBottom + 16.0f, layout.right, layout.bottom});
     } else {
-        const float heroRight = layout.left + available * 0.66f;
+        const float heroRight = layout.left + available * 0.635f;
         AddEditorItem("start.launch.card", 0, {layout.left, contentTop, heroRight - 8.0f, layout.bottom});
         AddEditorItem("start.release.card", 0, {heroRight + 8.0f, contentTop, layout.right, layout.bottom});
     }
@@ -347,6 +350,28 @@ const Rect& EditorActiveRect(const EditorItem& item) {
 std::wstring EditorTargetText() {
     return g_editorTarget == EditorTarget::Visual ? L"VISUAL" : L"HITBOX";
 }
+void SyncLinkedHitbox(EditorItem& item, const Rect& beforeVisual, const Rect& afterVisual) {
+    if (!item.hitboxLinked) return;
+    const float dx = afterVisual.l - beforeVisual.l;
+    const float dy = afterVisual.t - beforeVisual.t;
+    const float dw = RectWidth(afterVisual) - RectWidth(beforeVisual);
+    const float dh = RectHeight(afterVisual) - RectHeight(beforeVisual);
+    if (std::abs(dw) > 0.001f || std::abs(dh) > 0.001f) item.hitbox = afterVisual;
+    else {
+        item.hitbox.l += dx; item.hitbox.r += dx;
+        item.hitbox.t += dy; item.hitbox.b += dy;
+    }
+    ClampEditorRect(item.hitbox);
+}
+
+void RelinkSelectedHitbox() {
+    if (auto* item = FindEditorItem(g_editorSelected)) {
+        item->hitboxLinked = true;
+        item->hitbox = item->visual;
+        ClampEditorRect(item->hitbox);
+    }
+}
+
 
 void SetEditorItemRect(const char* id, const Rect& rect) {
     if (auto* item = FindEditorItem(id)) {
@@ -375,7 +400,7 @@ void SaveEditorJson() {
 
     out << "{\n";
     out << "  \"version\": 1,\n";
-    out << "  \"design\": {\"width\": 1920, \"height\": 1080, \"scale\": 0.82},\n";
+    out << "  \"design\": {\"width\": 1920, \"height\": 1080, \"scale\": 0.92},\n";
     out << "  \"lastPage\": " << g_page << ",\n";
     out << "  \"elements\": [\n";
 
@@ -494,7 +519,7 @@ void RenderEditorOverlay() {
     Color(0.65f, 0.70f, 0.77f);
     Text(selectedText.c_str(), {184.0f, 137.0f, 680.0f, 160.0f}, g_body);
     Color(0.44f, 0.49f, 0.56f);
-    Text(L"TAB target • arrows 1px / Shift 10px • drag handles resize • [ ] select • 1-4 page",
+    Text(L"TAB visual/hitbox • arrows 1px / Shift 10px • drag resize • [ ] select • L relink • 1-4 page",
          {62.0f, 162.0f, 680.0f, 180.0f}, g_label);
 }
 
@@ -502,9 +527,16 @@ void EditorResetSelected(HWND hwnd) {
     auto* item = FindEditorItem(g_editorSelected);
     if (!item) return;
 
-    EditorActiveRect(*item) = g_editorTarget == EditorTarget::Visual
-        ? item->defaultVisual
-        : item->defaultHitbox;
+    if (g_editorTarget == EditorTarget::Visual) {
+        const Rect before = item->visual;
+        item->visual = item->defaultVisual;
+        ClampEditorRect(item->visual);
+        SyncLinkedHitbox(*item, before, item->visual);
+    } else {
+        item->hitbox = item->defaultHitbox;
+        item->hitboxLinked = false;
+        ClampEditorRect(item->hitbox);
+    }
     SaveEditorJson();
     InvalidateRect(hwnd, nullptr, FALSE);
 }
@@ -619,34 +651,55 @@ void PlayGlyph(float x, float y, float size) {
 
 void RenderAnimatedBackground() {
     const float t = g_motion;
-
-    // Large, very low-alpha ambient orbs move slowly behind the UI.
-    for (int i = 0; i < 4; ++i) {
-        const float phase = t * (0.12f + i * 0.025f) + i * 1.57f;
-        const float x = 220.0f + (std::sin(phase) * 0.5f + 0.5f) * 1480.0f;
-        const float y = 170.0f + (std::cos(phase * 0.83f + i) * 0.5f + 0.5f) * 760.0f;
-        const float radius = 170.0f + 40.0f * (std::sin(t * 0.35f + i) * 0.5f + 0.5f);
-        Color(0.25f, 0.78f, 0.57f, 0.018f);
-        Circle(x, y, radius);
+    for (int band = 0; band < 7; ++band) {
+        const float baseY = 142.0f + band * 145.0f;
+        const float speed = 0.18f + band * 0.018f;
+        Color(0.20f + band * 0.012f, 0.62f + band * 0.015f, 0.48f + band * 0.01f,
+              0.020f + (band % 2) * 0.008f);
+        float px = -80.0f;
+        float py = baseY + std::sin(t * speed + band) * 38.0f;
+        for (int segment = 1; segment <= 16; ++segment) {
+            const float x = -80.0f + segment * 130.0f;
+            const float y = baseY +
+                std::sin(t * speed + segment * 0.56f + band * 0.9f) * (32.0f + band * 2.0f) +
+                std::cos(t * 0.08f + segment * 0.23f) * 16.0f;
+            Line(px, py, x, y, 2.0f + band * 0.08f);
+            px = x; py = y;
+        }
     }
-
-    // Small drifting particles give the empty areas of the launcher a little life.
-    for (int i = 0; i < 16; ++i) {
-        const float phase = t * (0.22f + (i % 5) * 0.035f) + i * 0.73f;
-        const float x = 70.0f + std::fmod(i * 121.0f + t * (7.0f + i * 0.8f), 1780.0f);
-        const float y = 130.0f + std::fmod(i * 67.0f + (std::sin(phase) * 0.5f + 0.5f) * 260.0f + t * (4.0f + i * 0.15f), 860.0f);
-        const float r = 1.5f + 1.5f * (std::sin(phase * 1.7f) * 0.5f + 0.5f);
-        Color(0.56f, 1.0f, 0.79f, 0.12f);
-        Circle(x, y, r);
+    const int nodeCount = 12;
+    D2D1_POINT_2F nodes[nodeCount]{};
+    for (int i = 0; i < nodeCount; ++i) {
+        const float phase = t * (0.09f + (i % 4) * 0.018f) + i * 1.17f;
+        nodes[i] = D2D1::Point2F(
+            90.0f + (std::sin(phase * 0.91f) * 0.5f + 0.5f) * 1740.0f,
+            126.0f + (std::cos(phase * 1.07f) * 0.5f + 0.5f) * 820.0f
+        );
     }
-
-    // A few slow moving scan lines keep the backdrop from looking static.
-    for (int i = 0; i < 5; ++i) {
-        const float y = 150.0f + i * 190.0f;
-        const float shift = std::sin(t * 0.28f + i * 1.3f) * 120.0f;
-        Color(0.33f, 0.72f, 0.58f, 0.028f);
-        Line(30.0f + shift, y, 620.0f + shift, y, 1.0f);
-        Line(1300.0f - shift, y + 34.0f, 1890.0f - shift, y + 34.0f, 1.0f);
+    for (int i = 0; i < nodeCount; ++i) {
+        for (int j = i + 1; j < nodeCount; ++j) {
+            const float dx = nodes[i].x - nodes[j].x;
+            const float dy = nodes[i].y - nodes[j].y;
+            const float distance = std::sqrt(dx * dx + dy * dy);
+            if (distance < 330.0f) {
+                Color(0.40f, 0.92f, 0.70f, 0.038f * (1.0f - distance / 330.0f));
+                Line(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y, 1.0f);
+            }
+        }
+    }
+    for (int i = 0; i < nodeCount; ++i) {
+        const float pulse = std::sin(t * 1.35f + i * 0.8f) * 0.5f + 0.5f;
+        Color(0.45f, 1.0f, 0.78f, 0.08f + pulse * 0.08f);
+        Circle(nodes[i].x, nodes[i].y, 4.0f + pulse * 5.0f);
+        Color(0.45f, 1.0f, 0.78f, 0.025f + pulse * 0.02f);
+        Circle(nodes[i].x, nodes[i].y, 22.0f + pulse * 10.0f);
+    }
+    for (int i = 0; i < 6; ++i) {
+        const float p = std::fmod(t * (0.12f + i * 0.01f) + i * 0.17f, 1.0f);
+        const float x = 40.0f + p * 1840.0f;
+        const float y = 118.0f + (std::sin(t * 0.22f + i * 1.8f) * 0.5f + 0.5f) * 830.0f;
+        Color(0.66f, 1.0f, 0.86f, 0.09f);
+        Circle(x, y, 2.0f + std::sin(t * 2.0f + i) * 0.8f);
     }
 }
 
@@ -992,6 +1045,13 @@ void Render(HWND hwnd) {
     const float top = layout.top;
     const float bottom = layout.bottom;
 
+    const float transition = 1.0f - std::pow(1.0f - std::min(g_pageAnim, 1.0f), 3.0f);
+    const float pageShift = (1.0f - transition) * 42.0f;
+    g_target->SetTransform(D2D1::Matrix3x2F(
+        viewport.scale, 0.0f, 0.0f, viewport.scale,
+        viewport.offsetX + pageShift, viewport.offsetY
+    ));
+
     switch (g_page) {
         case 0: RenderStart(left, right, top, bottom); break;
         case 1: RenderLibrary(left, right, top, bottom); break;
@@ -1200,17 +1260,27 @@ bool HandleEditorKey(HWND hwnd, WPARAM wp, LPARAM lp) {
         return true;
     }
 
+    if (wp == 'L' || wp == 'l') {
+        RelinkSelectedHitbox();
+        SaveEditorJson();
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return true;
+    }
+
     if (wp == VK_LEFT || wp == VK_RIGHT || wp == VK_UP || wp == VK_DOWN) {
         auto* item = FindEditorItem(g_editorSelected);
         if (!item) return true;
 
         const float step = (GetKeyState(VK_SHIFT) & 0x8000) ? 10.0f : 1.0f;
+        const Rect before = EditorActiveRect(*item);
         Rect& rect = EditorActiveRect(*item);
         if (wp == VK_LEFT) rect.l -= step, rect.r -= step;
         if (wp == VK_RIGHT) rect.l += step, rect.r += step;
         if (wp == VK_UP) rect.t -= step, rect.b -= step;
         if (wp == VK_DOWN) rect.t += step, rect.b += step;
         ClampEditorRect(rect);
+        if (g_editorTarget == EditorTarget::Visual) SyncLinkedHitbox(*item, before, rect);
+        else item->hitboxLinked = false;
         SaveEditorJson();
         InvalidateRect(hwnd, nullptr, FALSE);
         return true;
@@ -1274,8 +1344,16 @@ void UpdateEditorDrag(HWND hwnd, float x, float y) {
         else updated.b = updated.t + minSize;
     }
 
-    EditorActiveRect(*item) = updated;
-    ClampEditorRect(EditorActiveRect(*item));
+    if (g_editorTarget == EditorTarget::Visual) {
+        const Rect before = g_editorDragOrigin;
+        EditorActiveRect(*item) = updated;
+        ClampEditorRect(EditorActiveRect(*item));
+        SyncLinkedHitbox(*item, before, EditorActiveRect(*item));
+    } else {
+        item->hitboxLinked = false;
+        EditorActiveRect(*item) = updated;
+        ClampEditorRect(EditorActiveRect(*item));
+    }
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 
@@ -1430,6 +1508,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int headerPage = HeaderPageAt(point.x, point.y);
             if (headerPage >= 0) {
                 g_page = headerPage;
+                g_pageAnim = 0.0f;
                 InvalidateRect(hwnd, nullptr, FALSE);
                 return 0;
             }
@@ -1467,6 +1546,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_TIMER:
             if (wp == 3) {
                 g_motion += 0.016f;
+                g_pageAnim = std::min(1.0f, g_pageAnim + 0.11f);
                 if (g_inWorld) {
                     imux_world_update(0.016f);
                     imux_world_render();
