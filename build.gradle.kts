@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.21" apply false
 }
 group = "com.imux"
-version = "0.1.0"
+version = "0.0.1"
 subprojects {
     group = rootProject.group
     version = rootProject.version
