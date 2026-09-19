@@ -35,6 +35,7 @@ if (WIN32)
     target_include_directories(ImuxLauncher PRIVATE include)
     target_link_libraries(ImuxLauncher PRIVATE d2d1 dwrite d3d11 d3dcompiler windowscodecs ole32)
     target_compile_definitions(ImuxLauncher PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
+    target_link_options(ImuxLauncher PRIVATE "/MANIFEST:NO")
     set_target_properties(ImuxLauncher PROPERTIES
         OUTPUT_NAME "ImuxLauncher"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
