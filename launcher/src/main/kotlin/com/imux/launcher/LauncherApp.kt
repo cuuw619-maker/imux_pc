@@ -90,11 +90,11 @@ fun LauncherApp() {
                         Page.Settings -> SettingsScreen()
                     }
 
-                    AnimatedVisibility(visible = drawer, enter = fadeIn(), exit = fadeOut()) {
+                    androidx.compose.animation.AnimatedVisibility(visible = drawer, enter = fadeIn(), exit = fadeOut()) {
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.52f))
                             .clickable { drawer = false })
                     }
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = drawer,
                         enter = slideInHorizontally { -it } + fadeIn(),
                         exit = slideOutHorizontally { -it } + fadeOut()
