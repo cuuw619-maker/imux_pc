@@ -70,7 +70,8 @@ void Render(HWND hwnd) {
     Text(L"CLIENT PLATFORM", 36, 80, sidebar - 60, 24, g_small);
 
     Color(0.16f, 0.19f, 0.24f);
-    Fill(22, 132, sidebar - 22, 180, 12);
+    const float navY = 132.0f + static_cast<float>(g_page) * 51.0f;
+    Fill(22, navY, sidebar - 22, navY + 48.0f, 12);
     Color(0.88f, 0.91f, 0.95f);
     Text(L"Home", 48, 145, sidebar - 70, 28, g_body);
     Color(0.52f, 0.56f, 0.63f);
