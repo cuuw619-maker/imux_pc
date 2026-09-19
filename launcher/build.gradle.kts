@@ -18,18 +18,15 @@ compose.desktop {
     application {
         mainClass = "com.imux.launcher.MainKt"
         nativeDistributions {
-            targetFormats(
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi
-            )
-            packageName = "Imux"
+            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
+            packageName = "ImuxDev"
             packageVersion = "0.1.0"
-            description = "Imux Launcher"
+            description = "Imux development launcher shell"
             vendor = "Imux"
             windows {
                 menuGroup = "Imux"
-                shortcut = true
-                dirChooser = true
+                shortcut = false
+                dirChooser = false
             }
         }
     }
