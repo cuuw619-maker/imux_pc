@@ -160,8 +160,9 @@ void PlayGlyph(float x, float y, float size) {
 
 std::filesystem::path AppDataRoot() {
     wchar_t buffer[32768]{};
-    const DWORD length = GetEnvironmentVariableW(L"APPDATA", buffer, static_cast<DWORD>(std::size(buffer)));
-    if (length == 0 || length >= std::size(buffer)) return {};
+    const DWORD capacity = static_cast<DWORD>(sizeof(buffer) / sizeof(buffer[0]));
+    const DWORD length = GetEnvironmentVariableW(L"APPDATA", buffer, capacity);
+    if (length == 0 || length >= capacity) return {};
     return std::filesystem::path(buffer) / L"Imux";
 }
 
@@ -332,8 +333,9 @@ void RenderReleaseCard(const Rect& box) {
         L"Built-in base world remains available.",
         L"In-launcher changelog and version."
     };
-    for (int i = 0; i < 5; ++i) {
-        const float y = box.t + 158.0f + i * 51.0f;
+    const int maxEntries = std::max(1, std::min(5, static_cast<int>((box.b - box.t - 145.0f) / 45.0f)));
+    for (int i = 0; i < maxEntries; ++i) {
+        const float y = box.t + 151.0f + i * 45.0f;
         Color(0.60f, 0.96f, 0.78f);
         Circle(box.l + 31.0f, y + 7.0f, 3.0f);
         Color(0.66f, 0.71f, 0.77f);
@@ -589,7 +591,7 @@ void InitializeGraphics(HWND hwnd) {
     Log("InitializeGraphics: complete");
 }
 
-int HeaderPageAt(float x, float y, float width) {
+int HeaderPageAt(float x, float y) {
     if (y < 18.0f || y > 68.0f) return -1;
     const float navStart = 176.0f;
     const float navW = 106.0f;
@@ -682,7 +684,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const float width = static_cast<float>(rc.right);
             const float height = static_cast<float>(rc.bottom);
 
-            const int headerPage = HeaderPageAt(x, y, width);
+            const int headerPage = HeaderPageAt(x, y);
             if (headerPage >= 0) {
                 g_page = headerPage;
                 InvalidateRect(hwnd, nullptr, FALSE);
