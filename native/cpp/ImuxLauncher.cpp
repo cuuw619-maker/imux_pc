@@ -82,8 +82,6 @@ UiViewport CalculateUiViewport(float width, float height) {
 
 void Log(const char* format, ...);
 
-void Log(const char* format, ...);
-
 enum class EditorTarget {
     Visual,
     Hitbox
@@ -112,13 +110,6 @@ EditorItem* FindEditorItem(const std::string& id);
 const EditorItem* FindEditorItem(const std::string& id);
 Rect EditorVisual(const std::string& id, const Rect& fallback);
 Rect EditorHitbox(const std::string& id, const Rect& fallback);
-
-D2D1_POINT_2F ToDesignPoint(const UiViewport& viewport, float x, float y) {
-    return D2D1::Point2F(
-        (x - viewport.offsetX) / viewport.scale,
-        (y - viewport.offsetY) / viewport.scale
-    );
-}
 
 bool ClientToUiPoint(float x, float y, D2D1_POINT_2F& result) {
     if (!g_target) return false;
@@ -169,21 +160,6 @@ bool ClientToUiPoint(float x, float y, D2D1_POINT_2F& result) {
     result.y = x * transform._12 + y * transform._22 + transform._32;
     return true;
 }
-    if (!g_target) return false;
-
-    D2D1_MATRIX_3X2_F transform{};
-    g_target->GetTransform(&transform);
-
-    if (!D2D1InvertMatrix(&transform)) {
-        Log("Hit-test transform inversion failed");
-        return false;
-    }
-
-    result.x = x * transform._11 + y * transform._21 + transform._31;
-    result.y = x * transform._12 + y * transform._22 + transform._32;
-    return true;
-}
-
 struct LauncherLayout {
     float left;
     float right;
@@ -212,23 +188,6 @@ LauncherLayout CalculateLauncherLayout() {
     };
     return {left, right, top, bottom, compact, playRect};
 }
-
-enum class EditorTarget {
-    Visual,
-    Hitbox
-};
-
-enum class EditorHandle {
-    None,
-    N,
-    NE,
-    E,
-    SE,
-    S,
-    SW,
-    W,
-    NW
-};
 
 struct EditorItem {
     std::string id;
