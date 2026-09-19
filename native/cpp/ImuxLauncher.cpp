@@ -304,6 +304,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             imux_world_wndproc(hwnd, msg, wp, lp);
             return 0;
         }
+        if (msg == WM_TIMER && wp == 3) {
+            imux_world_update(0.016f);
+            imux_world_render();
+            return 0;
+        }
         if (msg == WM_PAINT) {
             PAINTSTRUCT ps{}; BeginPaint(hwnd, &ps); EndPaint(hwnd, &ps); return 0;
         }
