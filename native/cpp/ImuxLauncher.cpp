@@ -18,6 +18,8 @@
 #include <cstring>
 #include <cwchar>
 #include <cstdio>
+#include <iomanip>
+#include <sstream>
 #include "imux_3d_engine.h"
 
 using Microsoft::WRL::ComPtr;
@@ -79,6 +81,36 @@ UiViewport CalculateUiViewport(float width, float height) {
 
 void Log(const char* format, ...);
 
+void Log(const char* format, ...);
+
+enum class EditorTarget {
+    Visual,
+    Hitbox
+};
+
+enum class EditorHandle {
+    None,
+    N,
+    NE,
+    E,
+    SE,
+    S,
+    SW,
+    W,
+    NW
+};
+
+struct EditorItem;
+struct LauncherLayout;
+void InitializeEditorItems();
+void SaveEditorJson();
+void RenderEditorOverlay();
+void EditorResetSelected();
+EditorItem* FindEditorItem(const std::string& id);
+const EditorItem* FindEditorItem(const std::string& id);
+Rect EditorVisual(const std::string& id, const Rect& fallback);
+Rect EditorHitbox(const std::string& id, const Rect& fallback);
+
 D2D1_POINT_2F ToDesignPoint(const UiViewport& viewport, float x, float y) {
     return D2D1::Point2F(
         (x - viewport.offsetX) / viewport.scale,
@@ -87,6 +119,32 @@ D2D1_POINT_2F ToDesignPoint(const UiViewport& viewport, float x, float y) {
 }
 
 bool ClientToUiPoint(float x, float y, D2D1_POINT_2F& result) {
+    if (!g_target) return false;
+
+    D2D1_MATRIX_3X2_F transform{};
+    g_target->GetTransform(&transform);
+
+    const bool identity =
+        std::abs(transform._11 - 1.0f) < 0.0001f &&
+        std::abs(transform._22 - 1.0f) < 0.0001f &&
+        std::abs(transform._12) < 0.0001f &&
+        std::abs(transform._21) < 0.0001f &&
+        std::abs(transform._31) < 0.0001f &&
+        std::abs(transform._32) < 0.0001f;
+
+    if (identity) {
+        transform = g_uiTransform;
+    }
+
+    if (!D2D1InvertMatrix(&transform)) {
+        Log("Hit-test transform inversion failed");
+        return false;
+    }
+
+    result.x = x * transform._11 + y * transform._21 + transform._31;
+    result.y = x * transform._12 + y * transform._22 + transform._32;
+    return true;
+}
     if (!g_target) return false;
 
     D2D1_MATRIX_3X2_F transform{};
@@ -130,6 +188,297 @@ LauncherLayout CalculateLauncherLayout() {
     };
     return {left, right, top, bottom, compact, playRect};
 }
+
+enum class EditorTarget {
+    Visual,
+    Hitbox
+};
+
+enum class EditorHandle {
+    None,
+    N,
+    NE,
+    E,
+    SE,
+    S,
+    SW,
+    W,
+    NW
+};
+
+struct EditorItem {
+    std::string id;
+    int page;
+    Rect visual;
+    Rect hitbox;
+    Rect defaultVisual;
+    Rect defaultHitbox;
+
+    EditorItem(std::string itemId, int itemPage, Rect visualRect, Rect hitboxRect)
+        : id(std::move(itemId)),
+          page(itemPage),
+          visual(visualRect),
+          hitbox(hitboxRect),
+          defaultVisual(visualRect),
+          defaultHitbox(hitboxRect) {}
+};
+
+std::vector<EditorItem> g_editorItems;
+bool g_editorMode = false;
+EditorTarget g_editorTarget = EditorTarget::Visual;
+std::string g_editorSelected;
+EditorHandle g_editorHandle = EditorHandle::None;
+bool g_editorDragging = false;
+D2D1_POINT_2F g_editorDragStart{};
+Rect g_editorDragOrigin{};
+const char* g_editorJsonFile = "imux-ui-layout.json";
+
+Rect MakeRect(float x, float y, float width, float height) {
+    return {x, y, x + width, y + height};
+}
+
+float RectWidth(const Rect& r) {
+    return r.r - r.l;
+}
+
+float RectHeight(const Rect& r) {
+    return r.b - r.t;
+}
+
+void ClampEditorRect(Rect& r) {
+    constexpr float minSize = 20.0f;
+    const float width = std::max(minSize, RectWidth(r));
+    const float height = std::max(minSize, RectHeight(r));
+
+    r.l = Clamp(r.l, 0.0f, kDesignWidth - width);
+    r.t = Clamp(r.t, 0.0f, kDesignHeight - height);
+    r.r = r.l + width;
+    r.b = r.t + height;
+}
+
+EditorItem* FindEditorItem(const std::string& id) {
+    for (auto& item : g_editorItems) {
+        if (item.id == id) return &item;
+    }
+    return nullptr;
+}
+
+const EditorItem* FindEditorItem(const std::string& id) {
+    for (const auto& item : g_editorItems) {
+        if (item.id == id) return &item;
+    }
+    return nullptr;
+}
+
+Rect EditorVisual(const std::string& id, const Rect& fallback) {
+    if (const auto* item = FindEditorItem(id)) return item->visual;
+    return fallback;
+}
+
+Rect EditorHitbox(const std::string& id, const Rect& fallback) {
+    if (const auto* item = FindEditorItem(id)) return item->hitbox;
+    return fallback;
+}
+
+bool EditorItemVisibleOnPage(const EditorItem& item) {
+    return item.page == -1 || item.page == g_page;
+}
+
+void AddEditorItem(const char* id, int page, const Rect& rect) {
+    g_editorItems.emplace_back(id, page, rect, rect);
+}
+
+void InitializeEditorItems() {
+    if (!g_editorItems.empty()) return;
+
+    const LauncherLayout layout = CalculateLauncherLayout();
+
+    AddEditorItem("header.nav.start", -1, {176.0f, 21.0f, 275.0f, 63.0f});
+    AddEditorItem("header.nav.library", -1, {282.0f, 21.0f, 381.0f, 63.0f});
+    AddEditorItem("header.nav.changelog", -1, {388.0f, 21.0f, 487.0f, 63.0f});
+    AddEditorItem("header.nav.settings", -1, {494.0f, 21.0f, 593.0f, 63.0f});
+    AddEditorItem("header.guest", -1, {1776.0f, 22.0f, 1898.0f, 62.0f});
+
+    const float contentTop = layout.top + 94.0f;
+    const float available = layout.right - layout.left;
+    if (available >= 920.0f) {
+        const float heroRight = layout.left + available * 0.66f;
+        AddEditorItem("start.launch.card", 0, {layout.left, contentTop, heroRight - 8.0f, layout.bottom});
+        AddEditorItem("start.play", 0, {layout.left + 28.0f, layout.bottom - 82.0f, layout.left + 298.0f, layout.bottom - 24.0f});
+        AddEditorItem("start.release.card", 0, {heroRight + 8.0f, contentTop, layout.right, layout.bottom});
+    } else {
+        const float heroBottom = std::min(layout.bottom - 170.0f, contentTop + 290.0f);
+        AddEditorItem("start.launch.card", 0, {layout.left, contentTop, layout.right, heroBottom});
+        AddEditorItem("start.play", 0, {layout.left + 28.0f, heroBottom - 82.0f, layout.left + 298.0f, heroBottom - 24.0f});
+        AddEditorItem("start.release.card", 0, {layout.left, heroBottom + 16.0f, layout.right, layout.bottom});
+    }
+
+    const float changelogY0 = layout.top + 96.0f;
+    const float changelogH = Clamp((layout.bottom - changelogY0 - 50.0f) / 5.0f, 54.0f, 74.0f);
+    for (int i = 0; i < 5; ++i) {
+        const float y = changelogY0 + 38.0f + i * changelogH;
+        char id[64]{};
+        sprintf_s(id, "changelog.row.%d", i + 1);
+        AddEditorItem(id, 2, {layout.left, y, layout.right, y + changelogH - 8.0f});
+    }
+
+    const float libraryY0 = layout.top + 96.0f;
+    AddEditorItem("library.active.card", 1, {layout.left, libraryY0, layout.right, libraryY0 + 188.0f});
+    AddEditorItem("library.soon", 1, {layout.left, libraryY0 + 208.0f, layout.right, libraryY0 + 274.0f});
+
+    const float settingsY0 = layout.top + 96.0f;
+    const float settingsRowH = 66.0f;
+    for (int i = 0; i < 3; ++i) {
+        const float y = settingsY0 + i * settingsRowH;
+        char id[64]{};
+        sprintf_s(id, "settings.row.%d", i + 1);
+        AddEditorItem(id, 3, {layout.left, y, layout.right, y + settingsRowH - 10.0f});
+    }
+    AddEditorItem("settings.soon", 3, {layout.left, settingsY0 + settingsRowH * 3.0f + 8.0f, layout.right, settingsY0 + settingsRowH * 3.0f + 82.0f});
+
+    Log("UI editor initialized: %zu elements", g_editorItems.size());
+}
+
+Rect& EditorActiveRect(EditorItem& item) {
+    return g_editorTarget == EditorTarget::Visual ? item.visual : item.hitbox;
+}
+
+const Rect& EditorActiveRect(const EditorItem& item) {
+    return g_editorTarget == EditorTarget::Visual ? item.visual : item.hitbox;
+}
+
+std::wstring EditorTargetText() {
+    return g_editorTarget == EditorTarget::Visual ? L"VISUAL" : L"HITBOX";
+}
+
+void SaveEditorJson() {
+    std::ofstream out(g_editorJsonFile, std::ios::out | std::ios::trunc);
+    if (!out.is_open()) {
+        Log("UI editor: could not open %s for writing", g_editorJsonFile);
+        return;
+    }
+
+    out << "{\n";
+    out << "  \"version\": 1,\n";
+    out << "  \"design\": {\"width\": 1920, \"height\": 1080, \"scale\": 0.82},\n";
+    out << "  \"lastPage\": " << g_page << ",\n";
+    out << "  \"elements\": [\n";
+
+    out << std::fixed << std::setprecision(2);
+    for (size_t i = 0; i < g_editorItems.size(); ++i) {
+        const auto& item = g_editorItems[i];
+        out << "    {\n";
+        out << "      \"id\": \"" << item.id << "\",\n";
+        out << "      \"page\": " << item.page << ",\n";
+        out << "      \"visual\": {\"x\": " << item.visual.l
+            << ", \"y\": " << item.visual.t
+            << ", \"width\": " << RectWidth(item.visual)
+            << ", \"height\": " << RectHeight(item.visual) << "},\n";
+        out << "      \"hitbox\": {\"x\": " << item.hitbox.l
+            << ", \"y\": " << item.hitbox.t
+            << ", \"width\": " << RectWidth(item.hitbox)
+            << ", \"height\": " << RectHeight(item.hitbox) << "}\n";
+        out << "    }" << (i + 1 == g_editorItems.size() ? "\n" : ",\n");
+    }
+
+    out << "  ]\n";
+    out << "}\n";
+    out.close();
+    Log("UI editor saved: %s", g_editorJsonFile);
+}
+
+EditorHandle HitResizeHandle(const Rect& r, float x, float y) {
+    constexpr float handle = 11.0f;
+    const float midX = (r.l + r.r) * 0.5f;
+    const float midY = (r.t + r.b) * 0.5f;
+
+    auto near = [handle](float a, float b) { return std::abs(a - b) <= handle; };
+
+    if (near(x, r.l) && near(y, r.t)) return EditorHandle::NW;
+    if (near(x, midX) && near(y, r.t)) return EditorHandle::N;
+    if (near(x, r.r) && near(y, r.t)) return EditorHandle::NE;
+    if (near(x, r.r) && near(y, midY)) return EditorHandle::E;
+    if (near(x, r.r) && near(y, r.b)) return EditorHandle::SE;
+    if (near(x, midX) && near(y, r.b)) return EditorHandle::S;
+    if (near(x, r.l) && near(y, r.b)) return EditorHandle::SW;
+    if (near(x, r.l) && near(y, midY)) return EditorHandle::W;
+    return EditorHandle::None;
+}
+
+bool PointInEditorItem(const EditorItem& item, float x, float y) {
+    const Rect& rect = g_editorTarget == EditorTarget::Visual ? item.visual : item.hitbox;
+    return Hit(rect, x, y);
+}
+
+EditorItem* FindEditorItemAt(float x, float y) {
+    for (auto it = g_editorItems.rbegin(); it != g_editorItems.rend(); ++it) {
+        if (!EditorItemVisibleOnPage(*it)) continue;
+        if (PointInEditorItem(*it, x, y)) return &(*it);
+    }
+    return nullptr;
+}
+
+void RenderEditorOverlay() {
+    if (!g_editorMode) return;
+
+    for (const auto& item : g_editorItems) {
+        if (!EditorItemVisibleOnPage(item)) continue;
+
+        Color(0.20f, 0.85f, 0.95f, 0.20f);
+        Stroke(item.visual, 1.0f, item.id == g_editorSelected && g_editorTarget == EditorTarget::Visual ? 3.0f : 1.0f);
+
+        Color(0.95f, 0.35f, 0.35f, 0.20f);
+        Stroke(item.hitbox, 1.0f, item.id == g_editorSelected && g_editorTarget == EditorTarget::Hitbox ? 3.0f : 1.0f);
+    }
+
+    const EditorItem* selected = FindEditorItem(g_editorSelected);
+    if (selected && EditorItemVisibleOnPage(*selected)) {
+        const Rect& active = EditorActiveRect(*selected);
+        Color(0.95f, 0.88f, 0.35f, 0.95f);
+        Stroke(active, 2.0f, 2.0f);
+
+        const float xs[] = {active.l, (active.l + active.r) * 0.5f, active.r};
+        const float ys[] = {active.t, (active.t + active.b) * 0.5f, active.b};
+        for (int yi = 0; yi < 3; ++yi) {
+            for (int xi = 0; xi < 3; ++xi) {
+                const bool center = xi == 1 && yi == 1;
+                if (center) continue;
+                const float size = 8.0f;
+                Color(0.96f, 0.95f, 0.70f, 1.0f);
+                Fill({xs[xi] - size, ys[yi] - size, xs[xi] + size, ys[yi] + size}, 2.0f);
+            }
+        }
+    }
+
+    Color(0.04f, 0.05f, 0.065f, 0.94f);
+    Fill({44.0f, 92.0f, 610.0f, 184.0f}, 18.0f);
+    Color(0.55f, 1.0f, 0.78f);
+    Text(L"UI EDITOR  •  R toggles", {62.0f, 107.0f, 590.0f, 131.0f}, g_label);
+    Color(0.88f, 0.91f, 0.94f);
+    Text(EditorTargetText().c_str(), {62.0f, 137.0f, 180.0f, 160.0f}, g_body);
+
+    const std::wstring selectedText = g_editorSelected.empty()
+        ? L"Click an element to select"
+        : std::wstring(g_editorSelected.begin(), g_editorSelected.end());
+    Color(0.65f, 0.70f, 0.77f);
+    Text(selectedText.c_str(), {184.0f, 137.0f, 590.0f, 160.0f}, g_body);
+    Color(0.44f, 0.49f, 0.56f);
+    Text(L"TAB: visual / hitbox   •   arrows: move   •   drag handles: resize   •   1-4: page",
+         {62.0f, 162.0f, 590.0f, 180.0f}, g_label);
+}
+
+void EditorResetSelected() {
+    auto* item = FindEditorItem(g_editorSelected);
+    if (!item) return;
+
+    EditorActiveRect(*item) = g_editorTarget == EditorTarget::Visual
+        ? item->defaultVisual
+        : item->defaultHitbox;
+    SaveEditorJson();
+    InvalidateRect(nullptr, nullptr, FALSE);
+}
+
+
 
 bool Hit(const Rect& r, float x, float y) {
     return x >= r.l && x <= r.r && y >= r.t && y <= r.b;
@@ -323,18 +672,28 @@ void RenderHeader(float width) {
     for (int i = 0; i < 4; ++i) {
         const float x = navStart + i * navW;
         const bool selected = g_page == i;
+        const char* ids[] = {
+            "header.nav.start",
+            "header.nav.library",
+            "header.nav.changelog",
+            "header.nav.settings"
+        };
+        const Rect fallback{x, 21.0f, x + navW - 7.0f, 63.0f};
+        const Rect navRect = EditorVisual(ids[i], fallback);
         if (selected) {
             Color(0.08f, 0.17f, 0.14f);
-            Fill({x, 21.0f, x + navW - 7.0f, 63.0f}, 13.0f);
+            Fill(navRect, 13.0f);
         }
         Color(selected ? 0.67f : 0.49f, selected ? 0.97f : 0.55f, selected ? 0.80f : 0.63f);
-        Text(labels[i], {x + 13.0f, 31.0f, x + navW - 14.0f, 55.0f}, g_body);
+        Text(labels[i], {navRect.l + 13.0f, navRect.t + 10.0f, navRect.r - 14.0f, navRect.b - 8.0f}, g_body);
     }
 
+    const Rect guestFallback{width - 144.0f, 22.0f, width - 22.0f, 62.0f};
+    const Rect guestRect = EditorVisual("header.guest", guestFallback);
     Color(0.10f, 0.13f, 0.17f);
-    Fill({width - 144.0f, 22.0f, width - 22.0f, 62.0f}, 20.0f);
+    Fill(guestRect, 20.0f);
     Color(0.54f, 0.59f, 0.65f);
-    Text(L"Guest", {width - 113.0f, 31.0f, width - 37.0f, 54.0f}, g_body);
+    Text(L"Guest", {guestRect.l + 31.0f, guestRect.t + 9.0f, guestRect.r - 15.0f, guestRect.b - 8.0f}, g_body);
 }
 
 void RenderLaunchCard(const Rect& box) {
@@ -375,9 +734,16 @@ void RenderLaunchCard(const Rect& box) {
         {box.l + 31.0f, box.t + 228.0f, box.l + 100.0f, box.t + 250.0f},
         g_label);
 
-    const float buttonW = std::min(270.0f, box.r - box.l - 56.0f);
-    const float bx = box.l + 28.0f;
-    const float by = box.b - 82.0f;
+    const Rect fallbackButton{
+        box.l + 28.0f,
+        box.b - 82.0f,
+        box.l + 28.0f + std::min(270.0f, box.r - box.l - 56.0f),
+        box.b - 24.0f
+    };
+    const Rect buttonRect = EditorVisual("start.play", fallbackButton);
+    const float bx = buttonRect.l;
+    const float by = buttonRect.t;
+    const float buttonW = RectWidth(buttonRect);
     Color(
         g_hoverPlay ? 0.62f : 0.52f,
         g_hoverPlay ? 1.00f : 0.96f,
@@ -438,8 +804,10 @@ void RenderStart(float left, float right, float top, float bottom) {
         RenderReleaseCard({left, heroBottom + gap, right, bottom});
     } else {
         const float heroRight = left + available * 0.66f;
-        RenderLaunchCard({left, contentTop, heroRight - gap * 0.5f, bottom});
-        RenderReleaseCard({heroRight + gap * 0.5f, contentTop, right, bottom});
+        const Rect launchFallback{left, contentTop, heroRight - gap * 0.5f, bottom};
+        const Rect releaseFallback{heroRight + gap * 0.5f, contentTop, right, bottom};
+        RenderLaunchCard(EditorVisual("start.launch.card", launchFallback));
+        RenderReleaseCard(EditorVisual("start.release.card", releaseFallback));
     }
 }
 
@@ -466,12 +834,16 @@ void RenderChangelog(float left, float right, float top, float bottom) {
 
     for (int i = 0; i < 5; ++i) {
         const float y = y0 + 38.0f + i * h;
+        const Rect fallback{left, y, right, y + h - 8.0f};
+        char id[64]{};
+        sprintf_s(id, "changelog.row.%d", i + 1);
+        const Rect row = EditorVisual(id, fallback);
         Color(0.066f, 0.082f, 0.102f);
-        Fill({left, y, right, y + h - 8.0f}, 17.0f);
+        Fill(row, 17.0f);
         Color(0.46f, 0.98f, 0.76f);
-        Circle(left + 22.0f, y + 22.0f, 4.0f);
+        Circle(row.l + 22.0f, row.t + 22.0f, 4.0f);
         Color(0.78f, 0.82f, 0.87f);
-        Text(entries[i], {left + 39.0f, y + 10.0f, right - 20.0f, y + h - 12.0f}, g_body);
+        Text(entries[i], {row.l + 39.0f, row.t + 10.0f, row.r - 20.0f, row.b - 4.0f}, g_body);
     }
 }
 
@@ -482,8 +854,10 @@ void RenderLibrary(float left, float right, float top, float bottom) {
     Text(L"The current installation is the only launch target implemented.", {left, top + 48.0f, right, top + 74.0f}, g_body);
 
     const float y0 = top + 96.0f;
+    const Rect activeFallback{left, y0, right, y0 + 188.0f};
+    const Rect activeRect = EditorVisual("library.active.card", activeFallback);
     Color(0.066f, 0.082f, 0.102f);
-    Fill({left, y0, right, y0 + 188.0f}, 26.0f);
+    Fill(activeRect, 26.0f);
 
     Color(0.43f, 0.98f, 0.75f);
     Text(L"ACTIVE", {left + 26.0f, y0 + 25.0f, right - 20.0f, y0 + 48.0f}, g_label);
@@ -498,8 +872,10 @@ void RenderLibrary(float left, float right, float top, float bottom) {
     Text(L"0.0.1", {left + 190.0f, y0 + 108.0f, right - 20.0f, y0 + 132.0f}, g_body);
     Text(L"%APPDATA%\\Imux\\instances\\default", {left + 190.0f, y0 + 141.0f, right - 20.0f, y0 + 165.0f}, g_body);
 
+    const Rect soonFallback{left, y0 + 208.0f, right, y0 + 274.0f};
+    const Rect soonRect = EditorVisual("library.soon", soonFallback);
     Color(0.15f, 0.18f, 0.22f);
-    Fill({left, y0 + 208.0f, right, y0 + 274.0f}, 19.0f);
+    Fill(soonRect, 19.0f);
     Color(0.43f, 0.98f, 0.75f);
     Text(L"SOON", {left + 25.0f, y0 + 230.0f, left + 90.0f, y0 + 252.0f}, g_label);
 }
@@ -520,17 +896,23 @@ void RenderSettings(float left, float right, float top, float bottom) {
 
     for (int i = 0; i < 3; ++i) {
         const float y = y0 + i * rowH;
+        const Rect fallback{left, y, right, y + rowH - 10.0f};
+        char id[64]{};
+        sprintf_s(id, "settings.row.%d", i + 1);
+        const Rect row = EditorVisual(id, fallback);
         Color(0.066f, 0.082f, 0.102f);
-        Fill({left, y, right, y + rowH - 10.0f}, 17.0f);
+        Fill(row, 17.0f);
         Color(0.48f, 0.54f, 0.62f);
-        Text(labels[i], {left + 20.0f, y + 11.0f, left + 170.0f, y + 33.0f}, g_label);
+        Text(labels[i], {row.l + 20.0f, row.t + 11.0f, row.l + 170.0f, row.t + 33.0f}, g_label);
         Color(0.79f, 0.83f, 0.88f);
-        Text(values[i].c_str(), {left + 170.0f, y + 10.0f, right - 18.0f, y + 38.0f}, g_body);
+        Text(values[i].c_str(), {row.l + 170.0f, row.t + 10.0f, row.r - 18.0f, row.t + 38.0f}, g_body);
     }
 
     const float soonY = y0 + rowH * 3.0f + 8.0f;
+    const Rect soonFallback{left, soonY, right, std::min(bottom, soonY + 74.0f)};
+    const Rect soonRect = EditorVisual("settings.soon", soonFallback);
     Color(0.15f, 0.18f, 0.22f);
-    Fill({left, soonY, right, std::min(bottom, soonY + 74.0f)}, 19.0f);
+    Fill(soonRect, 19.0f);
     Color(0.43f, 0.98f, 0.75f);
     Text(L"SOON", {left + 25.0f, soonY + 25.0f, left + 95.0f, soonY + 49.0f}, g_label);
 }
@@ -573,6 +955,8 @@ void Render(HWND hwnd) {
         case 3: RenderSettings(left, right, top, bottom); break;
         default: g_page = 0; RenderStart(left, right, top, bottom); break;
     }
+
+    RenderEditorOverlay();
 
     g_target->SetTransform(D2D1::Matrix3x2F::Identity());
     const HRESULT hr = g_target->EndDraw();
@@ -678,12 +1062,19 @@ void InitializeGraphics(HWND hwnd) {
 }
 
 int HeaderPageAt(float x, float y) {
-    if (y < 18.0f || y > 68.0f) return -1;
+    const char* ids[] = {
+        "header.nav.start",
+        "header.nav.library",
+        "header.nav.changelog",
+        "header.nav.settings"
+    };
     const float navStart = 176.0f;
     const float navW = 106.0f;
-    if (x < navStart || x > navStart + navW * 4.0f) return -1;
-    const int index = static_cast<int>((x - navStart) / navW);
-    return index >= 0 && index < 4 ? index : -1;
+    for (int i = 0; i < 4; ++i) {
+        const Rect fallback{navStart + i * navW, 18.0f, navStart + i * navW + navW - 7.0f, 68.0f};
+        if (Hit(EditorHitbox(ids[i], fallback), x, y)) return i;
+    }
+    return -1;
 }
 
 void ToggleFullscreen(HWND hwnd) {
@@ -726,10 +1117,186 @@ void ToggleFullscreen(HWND hwnd) {
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 
+bool HandleEditorKey(HWND hwnd, WPARAM wp, LPARAM lp) {
+    if (!g_editorMode) return false;
+
+    if (wp == VK_TAB) {
+        g_editorTarget = g_editorTarget == EditorTarget::Visual ? EditorTarget::Hitbox : EditorTarget::Visual;
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return true;
+    }
+
+    if (wp == VK_ESCAPE) {
+        g_editorMode = false;
+        g_editorDragging = false;
+        ReleaseCapture();
+        SaveEditorJson();
+        InvalidateRect(hwnd, nullptr, FALSE);
+        Log("UI editor: disabled");
+        return true;
+    }
+
+    if (wp >= '1' && wp <= '4') {
+        g_page = static_cast<int>(wp - '1');
+        g_editorSelected.clear();
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return true;
+    }
+
+    if (wp == 'S' && (GetKeyState(VK_CONTROL) & 0x8000)) {
+        SaveEditorJson();
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return true;
+    }
+
+    if (wp == VK_BACK) {
+        EditorResetSelected();
+        return true;
+    }
+
+    if (wp == VK_LEFT || wp == VK_RIGHT || wp == VK_UP || wp == VK_DOWN) {
+        auto* item = FindEditorItem(g_editorSelected);
+        if (!item) return true;
+
+        const float step = (GetKeyState(VK_SHIFT) & 0x8000) ? 10.0f : 1.0f;
+        Rect& rect = EditorActiveRect(*item);
+        if (wp == VK_LEFT) rect.l -= step, rect.r -= step;
+        if (wp == VK_RIGHT) rect.l += step, rect.r += step;
+        if (wp == VK_UP) rect.t -= step, rect.b -= step;
+        if (wp == VK_DOWN) rect.t += step, rect.b += step;
+        ClampEditorRect(rect);
+        SaveEditorJson();
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return true;
+    }
+
+    return false;
+}
+
+void BeginEditorDrag(HWND hwnd, float x, float y) {
+    InitializeEditorItems();
+
+    EditorItem* item = FindEditorItemAt(x, y);
+    if (!item) {
+        g_editorSelected.clear();
+        g_editorHandle = EditorHandle::None;
+        InvalidateRect(hwnd, nullptr, FALSE);
+        return;
+    }
+
+    g_editorSelected = item->id;
+    Rect& active = EditorActiveRect(*item);
+    g_editorHandle = HitResizeHandle(active, x, y);
+    g_editorDragging = true;
+    g_editorDragStart = D2D1::Point2F(x, y);
+    g_editorDragOrigin = active;
+    SetCapture(hwnd);
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+void UpdateEditorDrag(HWND hwnd, float x, float y) {
+    if (!g_editorDragging) return;
+
+    auto* item = FindEditorItem(g_editorSelected);
+    if (!item) return;
+
+    Rect updated = g_editorDragOrigin;
+    const float dx = x - g_editorDragStart.x;
+    const float dy = y - g_editorDragStart.y;
+
+    if (g_editorHandle == EditorHandle::None) {
+        updated.l += dx;
+        updated.r += dx;
+        updated.t += dy;
+        updated.b += dy;
+    } else {
+        if (g_editorHandle == EditorHandle::NW || g_editorHandle == EditorHandle::W || g_editorHandle == EditorHandle::SW) updated.l += dx;
+        if (g_editorHandle == EditorHandle::NE || g_editorHandle == EditorHandle::E || g_editorHandle == EditorHandle::SE) updated.r += dx;
+        if (g_editorHandle == EditorHandle::NW || g_editorHandle == EditorHandle::N || g_editorHandle == EditorHandle::NE) updated.t += dy;
+        if (g_editorHandle == EditorHandle::SW || g_editorHandle == EditorHandle::S || g_editorHandle == EditorHandle::SE) updated.b += dy;
+    }
+
+    const float minSize = 20.0f;
+    if (updated.r - updated.l < minSize) {
+        if (g_editorHandle == EditorHandle::NW || g_editorHandle == EditorHandle::W || g_editorHandle == EditorHandle::SW) updated.l = updated.r - minSize;
+        else updated.r = updated.l + minSize;
+    }
+    if (updated.b - updated.t < minSize) {
+        if (g_editorHandle == EditorHandle::NW || g_editorHandle == EditorHandle::N || g_editorHandle == EditorHandle::NE) updated.t = updated.b - minSize;
+        else updated.b = updated.t + minSize;
+    }
+
+    EditorActiveRect(*item) = updated;
+    ClampEditorRect(EditorActiveRect(*item));
+    SaveEditorJson();
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+void EndEditorDrag(HWND hwnd) {
+    if (!g_editorDragging) return;
+    g_editorDragging = false;
+    g_editorHandle = EditorHandle::None;
+    ReleaseCapture();
+    SaveEditorJson();
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+void ToggleEditor(HWND hwnd) {
+    InitializeEditorItems();
+    g_editorMode = !g_editorMode;
+    g_editorDragging = false;
+    g_editorSelected.clear();
+    g_editorHandle = EditorHandle::None;
+    ReleaseCapture();
+    if (g_editorMode) {
+        SaveEditorJson();
+        Log("UI editor: enabled; target=visual");
+    } else {
+        SaveEditorJson();
+        Log("UI editor: disabled");
+    }
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_KEYDOWN && wp == VK_F11) {
         ToggleFullscreen(hwnd);
         return 0;
+    }
+
+    if (!g_inWorld && msg == WM_KEYDOWN && (wp == 'R' || wp == 'r')) {
+        ToggleEditor(hwnd);
+        return 0;
+    }
+
+    if (!g_inWorld && msg == WM_KEYDOWN && HandleEditorKey(hwnd, wp, lp)) {
+        return 0;
+    }
+
+    if (g_editorMode && !g_inWorld) {
+        switch (msg) {
+            case WM_LBUTTONDOWN: {
+                D2D1_POINT_2F point{};
+                if (ClientToUiPoint(static_cast<float>(GET_X_LPARAM(lp)), static_cast<float>(GET_Y_LPARAM(lp)), point)) {
+                    BeginEditorDrag(hwnd, point.x, point.y);
+                }
+                return 0;
+            }
+
+            case WM_MOUSEMOVE: {
+                D2D1_POINT_2F point{};
+                if (ClientToUiPoint(static_cast<float>(GET_X_LPARAM(lp)), static_cast<float>(GET_Y_LPARAM(lp)), point)) {
+                    if (g_editorDragging) {
+                        UpdateEditorDrag(hwnd, point.x, point.y);
+                    }
+                }
+                return 0;
+            }
+
+            case WM_LBUTTONUP:
+                EndEditorDrag(hwnd);
+                return 0;
+        }
     }
 
     if (g_inWorld) {
@@ -767,6 +1334,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             g_windowedPlacement.length = sizeof(WINDOWPLACEMENT);
             GetWindowPlacement(hwnd, &g_windowedPlacement);
             InitializeGraphics(hwnd);
+            InitializeEditorItems();
             SetTimer(hwnd, 3, 16, nullptr);
             return 0;
 
@@ -794,12 +1362,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_MOUSEMOVE: {
             const float x = static_cast<float>(GET_X_LPARAM(lp));
             const float y = static_cast<float>(GET_Y_LPARAM(lp));
-            RECT rc{};
-            GetClientRect(hwnd, &rc);
             D2D1_POINT_2F point{};
             if (!ClientToUiPoint(x, y, point)) return 0;
             const LauncherLayout layout = CalculateLauncherLayout();
-            const bool hover = g_page == 0 && Hit(layout.playRect, point.x, point.y);
+            const bool hover = g_page == 0 && Hit(EditorHitbox("start.play", layout.playRect), point.x, point.y);
             if (hover != g_hoverPlay) {
                 g_hoverPlay = hover;
                 InvalidateRect(hwnd, nullptr, FALSE);
@@ -810,8 +1376,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_LBUTTONUP: {
             const float x = static_cast<float>(GET_X_LPARAM(lp));
             const float y = static_cast<float>(GET_Y_LPARAM(lp));
-            RECT rc{};
-            GetClientRect(hwnd, &rc);
             D2D1_POINT_2F point{};
             if (!ClientToUiPoint(x, y, point)) return 0;
 
@@ -825,7 +1389,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (g_page == 0) {
                 const LauncherLayout layout = CalculateLauncherLayout();
 
-                if (Hit(layout.playRect, point.x, point.y)) {
+                if (Hit(EditorHitbox("start.play", layout.playRect), point.x, point.y)) {
                     Log("Play clicked");
                     const int externalResult = TryLaunchInstalledGame();
                     if (externalResult == 1) {
