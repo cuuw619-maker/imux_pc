@@ -16,6 +16,11 @@ required = [
     "rust/Cargo.toml",
     "rust/crates/imux-core/src/world.rs",
     "launcher/src/main/kotlin/com/imux/launcher/LauncherMetadataStore.kt",
+    "launcher/src/main/resources/icon.webp",
+    "native/assets/blocks/dirt.png",
+    "native/assets/blocks/stone.png",
+    "native/assets/gui/crosshair.png",
+    "native/assets/gui/hotbar.png",
     "settings.gradle.kts",
 ]
 
