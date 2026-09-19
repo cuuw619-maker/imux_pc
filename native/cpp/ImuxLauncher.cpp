@@ -1,12 +1,12 @@
 #include <windows.h>
+#include <windowsx.h>
 #include <d2d1.h>
 #include <dwrite.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <wrl/client.h>
-#include <string>
-#include <vector>
 #include <algorithm>
+#include <cstring>
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
@@ -39,8 +39,9 @@ void Color(float r, float g, float b, float a = 1.0f) {
 }
 
 void Fill(float l, float t, float r, float b, float radius = 0.0f) {
-    auto rect = D2D1::RoundedRect(D2D1::RectF(l, t, r, b), radius, radius);
-    g_target->FillRoundedRectangle(rect, g_brush.Get());
+    g_target->FillRoundedRectangle(
+        D2D1::RoundedRect(D2D1::RectF(l, t, r, b), radius, radius),
+        g_brush.Get());
 }
 
 void Text(const wchar_t* value, float x, float y, float w, float h, IDWriteTextFormat* format) {
@@ -48,16 +49,9 @@ void Text(const wchar_t* value, float x, float y, float w, float h, IDWriteTextF
         format, D2D1::RectF(x, y, x + w, y + h), g_brush.Get());
 }
 
-void DrawUi() {
-    RECT rc{};
-    GetClientRect(WindowFromDC(nullptr), &rc);
-}
-
 void Render(HWND hwnd) {
     if (!g_target) return;
     g_target->BeginDraw();
-
-    Color(0.035f, 0.043f, 0.055f);
     g_target->Clear(D2D1::ColorF(0.035f, 0.043f, 0.055f));
 
     RECT client{};
@@ -89,7 +83,8 @@ void Render(HWND hwnd) {
     Color(0.88f, 0.91f, 0.95f);
     Text(L"Your game environment", sidebar + 54, 42, width - sidebar - 100, 42, g_title);
     Color(0.48f, 0.52f, 0.60f);
-    Text(L"One native launcher. One controlled runtime. Your client.", sidebar + 56, 88, width - sidebar - 110, 28, g_body);
+    Text(L"One native launcher. One controlled runtime. Your client.",
+        sidebar + 56, 88, width - sidebar - 110, 28, g_body);
 
     const float cardLeft = sidebar + 54;
     const float cardRight = width - 54;
@@ -101,21 +96,26 @@ void Render(HWND hwnd) {
     Color(0.93f, 0.95f, 0.98f);
     Text(L"Default Client", cardLeft + 28, 205, 420, 46, g_title);
     Color(0.48f, 0.52f, 0.60f);
-    Text(L"Development profile  |  Windows x64", cardLeft + 30, 258, 480, 28, g_body);
+    Text(L"Development profile  |  Windows x64",
+        cardLeft + 30, 258, 480, 28, g_body);
 
     const float buttonLeft = cardRight - 190;
     const float buttonTop = 218;
-    Color(g_hoverPlay ? 0.36f : 0.30f, g_hoverPlay ? 0.92f : 0.82f, g_hoverPlay ? 0.70f : 0.62f);
+    Color(g_hoverPlay ? 0.36f : 0.30f,
+          g_hoverPlay ? 0.92f : 0.82f,
+          g_hoverPlay ? 0.70f : 0.62f);
     Fill(buttonLeft, buttonTop, cardRight - 28, buttonTop + 62, 14);
     Color(0.025f, 0.035f, 0.043f);
-    Text(g_launching ? L"STARTING..." : L"PLAY", buttonLeft + 45, buttonTop + 16, 120, 32, g_button);
+    Text(g_launching ? L"STARTING..." : L"PLAY",
+        buttonLeft + 45, buttonTop + 16, 120, 32, g_button);
 
     Color(0.060f, 0.075f, 0.095f);
     Fill(cardLeft, 378, cardRight, 474, 16);
     Color(0.88f, 0.91f, 0.95f);
     Text(L"Runtime status", cardLeft + 24, 400, 240, 28, g_body);
     Color(0.30f, 0.82f, 0.62f);
-    Text(g_launching ? L"Launching development runtime" : L"Ready", cardLeft + 24, 432, 360, 24, g_small);
+    Text(g_launching ? L"Launching development runtime" : L"Ready",
+        cardLeft + 24, 432, 360, 24, g_small);
 
     Color(0.48f, 0.52f, 0.60f);
     Text(L"Native stack", cardLeft, 510, 240, 30, g_body);
@@ -133,7 +133,8 @@ void Render(HWND hwnd) {
     }
 
     Color(0.38f, 0.42f, 0.50f);
-    Text(L"Imux UI Engine 0.1  |  Direct2D / DirectWrite  |  D3D11 + HLSL pipeline", cardLeft, height - 42, cardRight - cardLeft, 24, g_small);
+    Text(L"Imux UI Engine 0.1  |  Direct2D / DirectWrite  |  D3D11 + HLSL pipeline",
+        cardLeft, std::max(620.0f, height - 42.0f), cardRight - cardLeft, 24, g_small);
 
     g_target->EndDraw();
 }
@@ -145,7 +146,9 @@ void InitializeGraphics(HWND hwnd) {
 
     RECT rc{};
     GetClientRect(hwnd, &rc);
-    const auto size = D2D1::SizeU(std::max<LONG>(1, rc.right), std::max<LONG>(1, rc.bottom));
+    const auto size = D2D1::SizeU(
+        std::max<LONG>(1, rc.right), std::max<LONG>(1, rc.bottom));
+
     g_d2dFactory->CreateHwndRenderTarget(
         D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT),
         D2D1::HwndRenderTargetProperties(hwnd, size),
@@ -162,8 +165,9 @@ void InitializeGraphics(HWND hwnd) {
         DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 16.0f, L"en-us", &g_button);
 
     D3D_FEATURE_LEVEL featureLevel{};
-    D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-        nullptr, 0, D3D11_SDK_VERSION, &g_d3dDevice, &featureLevel, &g_d3dContext);
+    D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+        D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+        &g_d3dDevice, &featureLevel, &g_d3dContext);
 
     const char* shader = R"(
         struct PSInput { float4 position : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -181,6 +185,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CREATE:
         InitializeGraphics(hwnd);
         return 0;
+    case WM_GETMINMAXINFO: {
+        auto* info = reinterpret_cast<MINMAXINFO*>(lp);
+        info->ptMinTrackSize.x = 960;
+        info->ptMinTrackSize.y = 640;
+        return 0;
+    }
     case WM_SIZE:
         if (g_target) {
             g_target->Resize(D2D1::SizeU(LOWORD(lp), HIWORD(lp)));
@@ -190,17 +200,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_MOUSEMOVE: {
         const float x = static_cast<float>(GET_X_LPARAM(lp));
         const float y = static_cast<float>(GET_Y_LPARAM(lp));
-        RECT rc{}; GetClientRect(hwnd, &rc);
-        const float sidebar = std::clamp(static_cast<float>(rc.right) * 0.20f, 210.0f, 280.0f);
-        const bool next = x >= rc.right - 244 && x <= rc.right - 82 && y >= 218 && y <= 280 && x > sidebar;
-        if (next != g_hoverPlay) { g_hoverPlay = next; InvalidateRect(hwnd, nullptr, FALSE); }
+        RECT rc{};
+        GetClientRect(hwnd, &rc);
+        const bool next = x >= rc.right - 244 && x <= rc.right - 82 &&
+            y >= 218 && y <= 280;
+        if (next != g_hoverPlay) {
+            g_hoverPlay = next;
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
         return 0;
     }
     case WM_LBUTTONUP: {
-        RECT rc{}; GetClientRect(hwnd, &rc);
+        RECT rc{};
+        GetClientRect(hwnd, &rc);
         const float x = static_cast<float>(GET_X_LPARAM(lp));
         const float y = static_cast<float>(GET_Y_LPARAM(lp));
-        if (x >= rc.right - 244 && x <= rc.right - 82 && y >= 218 && y <= 280) {
+        if (x >= rc.right - 244 && x <= rc.right - 82 &&
+            y >= 218 && y <= 280) {
             g_launching = true;
             InvalidateRect(hwnd, nullptr, FALSE);
             SetTimer(hwnd, 1, 900, nullptr);
