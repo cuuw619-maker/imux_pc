@@ -506,11 +506,11 @@ void InitializeLogging() {
     }
 }
 
-void Color(float r, float g, float b, float a = 1.0f) {
+void Color(float r, float g, float b, float a) {
     g_brush->SetColor(D2D1::ColorF(r, g, b, a));
 }
 
-void Fill(const Rect& r, float radius = 0.0f) {
+void Fill(const Rect& r, float radius) {
     if (radius <= 0.0f) {
         g_target->FillRectangle(D2D1::RectF(r.l, r.t, r.r, r.b), g_brush.Get());
     } else {
@@ -521,7 +521,7 @@ void Fill(const Rect& r, float radius = 0.0f) {
     }
 }
 
-void Stroke(const Rect& r, float radius = 0.0f, float width = 1.0f) {
+void Stroke(const Rect& r, float radius, float width) {
     if (radius <= 0.0f) {
         g_target->DrawRectangle(D2D1::RectF(r.l, r.t, r.r, r.b), g_brush.Get(), width);
     } else {
