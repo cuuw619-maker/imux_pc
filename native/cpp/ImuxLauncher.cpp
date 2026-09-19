@@ -12,6 +12,9 @@
 #include <cstdarg>
 #include <fstream>
 #include <string>
+#include <cstring>
+#include <cwchar>
+#include <cstdio>
 #include <exception>
 #include "imux_3d_engine.h"
 
