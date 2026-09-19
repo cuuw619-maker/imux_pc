@@ -37,6 +37,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: imux-launcher-windows-x64
+          retention-days: 7
           path: |
             build/native/bin/ImuxLauncher.exe
             build/native/bin/imux_ui.hlsl
