@@ -122,9 +122,9 @@ void Icon(int kind, float x, float y, float size, bool active = false) {
     const float s = size;
     Color(active ? 0.72f : 0.55f, active ? 0.98f : 0.61f, active ? 0.86f : 0.67f);
     if (kind == 0) { // home
-        D2D1_POINT_2F p[3] = {{x, y - s * .32f}, {x - s * .34f, y}, {x + s * .34f, y}};
-        g_target->FillTriangle(p[0], p[1], p[2], g_brush.Get());
-        g_target->FillRectangle(D2D1::RectF(x - s*.22f, y, x + s*.22f, y + s*.30f), g_brush.Get());
+        g_target->DrawLine(D2D1::Point2F(x-s*.34f,y), D2D1::Point2F(x,y-s*.32f), g_brush.Get(), 3.0f);
+        g_target->DrawLine(D2D1::Point2F(x,y-s*.32f), D2D1::Point2F(x+s*.34f,y), g_brush.Get(), 3.0f);
+        g_target->FillRectangle(D2D1::RectF(x-s*.22f, y, x+s*.22f, y+s*.30f), g_brush.Get());
     } else if (kind == 1) { // instances
         Fill({x-s*.32f,y-s*.26f,x+s*.32f,y-s*.06f}, 3);
         Fill({x-s*.32f,y+s*.03f,x+s*.32f,y+s*.23f}, 3);
