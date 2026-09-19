@@ -1,75 +1,52 @@
 package com.imux.launcher
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Launch
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -81,78 +58,74 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.imux.core.model.InstallationProfile
+import com.imux.core.release.ImuxRelease
 import com.imux.core.service.ConfigRepository
 import com.imux.core.service.GameLaunchService
 import com.imux.core.service.RuntimeValidator
-import com.imux.runtime.JsonConfigRepository
-import com.imux.runtime.MockGameLaunchService
-import com.imux.runtime.RuntimeValidatorImpl
 import com.imux.core.state.LauncherUiState
+import com.imux.runtime.GameLaunchServiceImpl
 import com.imux.runtime.ImuxPaths
+import com.imux.runtime.JsonConfigRepository
+import com.imux.runtime.RuntimeValidatorImpl
 import kotlinx.coroutines.launch
 
-private val ImuxPrimary = Color(0xFF9DEFC9)
-private val ImuxPrimaryContainer = Color(0xFF07513C)
-private val ImuxSurface = Color(0xFF0D1117)
-private val ImuxSurfaceContainer = Color(0xFF171C23)
-private val ImuxSurfaceHigh = Color(0xFF20262F)
-private val ImuxOutline = Color(0xFF3D4652)
+private val LaunchAccent = Color(0xFF9EF1C8)
+private val LaunchAccentStrong = Color(0xFF45D99B)
+private val LaunchBackground = Color(0xFF080B0F)
+private val LaunchSurface = Color(0xFF11161D)
+private val LaunchSurface2 = Color(0xFF171D25)
+private val LaunchOutline = Color(0xFF2C353F)
+private val LaunchText = Color(0xFFE8EDF2)
+private val LaunchMuted = Color(0xFF87929F)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LauncherApp() {
-    val scheme = darkColorScheme(
-        primary = ImuxPrimary,
-        onPrimary = Color(0xFF00382A),
-        primaryContainer = ImuxPrimaryContainer,
-        onPrimaryContainer = Color(0xFFB9FFDE),
-        secondary = Color(0xFFB8CCC2),
-        onSecondary = Color(0xFF24332D),
-        secondaryContainer = Color(0xFF394A43),
-        onSecondaryContainer = Color(0xFFD4E8DF),
-        tertiary = Color(0xFFBBD0FF),
-        onTertiary = Color(0xFF21304A),
-        background = ImuxSurface,
-        onBackground = Color(0xFFE1E5EA),
-        surface = ImuxSurface,
-        onSurface = Color(0xFFE1E5EA),
-        surfaceVariant = ImuxSurfaceHigh,
-        onSurfaceVariant = Color(0xFFB7C0CB),
-        surfaceContainer = ImuxSurfaceContainer,
-        surfaceContainerHigh = ImuxSurfaceHigh,
-        outline = ImuxOutline
-    )
-
-    MaterialTheme(colorScheme = scheme) {
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = LaunchAccent,
+            onPrimary = Color(0xFF082016),
+            primaryContainer = Color(0xFF153C2D),
+            onPrimaryContainer = Color(0xFFB8F8D9),
+            secondary = Color(0xFFAAB8C5),
+            background = LaunchBackground,
+            onBackground = LaunchText,
+            surface = LaunchSurface,
+            onSurface = LaunchText,
+            surfaceVariant = LaunchSurface2,
+            onSurfaceVariant = LaunchMuted,
+            outline = LaunchOutline
+        )
+    ) {
         val repository: ConfigRepository = remember { JsonConfigRepository() }
         val validator: RuntimeValidator = remember { RuntimeValidatorImpl() }
-        val gameLauncher: GameLaunchService = remember { MockGameLaunchService() }
+        val gameLauncher: GameLaunchService = remember { GameLaunchServiceImpl() }
         val scope = rememberCoroutineScope()
 
         var state by remember { mutableStateOf<LauncherUiState>(LauncherUiState.Loading) }
-        var page by remember { mutableStateOf(Page.Home) }
-        var drawer by remember { mutableStateOf(false) }
+        var page by remember { mutableStateOf(Page.Start) }
 
         LaunchedEffect(Unit) {
             runCatching {
                 val config = repository.load()
                 val profile = config.installations.firstOrNull { it.id == config.selectedInstallationId }
-                    ?: config.installations.first()
+                    ?: config.installations.firstOrNull()
+                    ?: error("No installation profile is configured.")
                 val runtime = validator.validate(config.runtime)
                 LauncherUiState.Ready(profile, runtime.available)
             }.onSuccess { state = it }
-                .onFailure { state = LauncherUiState.Error(it.message ?: "Unable to load launcher configuration.") }
+                .onFailure { state = LauncherUiState.Error(it.message ?: "Unable to load launcher state.") }
         }
 
         val play: () -> Unit = {
-            if (state is LauncherUiState.Ready) {
-                val ready = state as LauncherUiState.Ready
+            val ready = state as? LauncherUiState.Ready
+            if (ready != null) {
                 state = LauncherUiState.Launching(ready.profile)
                 scope.launch {
                     val result = gameLauncher.launch(ready.profile)
@@ -165,92 +138,27 @@ fun LauncherApp() {
             }
         }
 
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            Scaffold(
-                containerColor = MaterialTheme.colorScheme.background,
-                topBar = {
-                    TopAppBar(
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    modifier = Modifier.size(34.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Gamepad, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                                    }
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text("Imux", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                                    Text(
-                                        page.title,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        },
-                        navigationIcon = {
-                            IconButton(onClick = { drawer = true }) {
-                                Icon(Icons.Default.Menu, "Open navigation")
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.background
-                        )
-                    )
-                }
-            ) { insets ->
-                Box(
-                    Modifier.fillMaxSize().padding(insets)
-                ) {
-                    AnimatedContent(
-                        targetState = page,
-                        transitionSpec = {
-                            fadeIn(tween(180)) togetherWith fadeOut(tween(120))
-                        },
-                        label = "page"
-                    ) { target ->
-                        when (target) {
-                            Page.Home -> HomeScreen(state, play)
-                            Page.Instances -> InstancesScreen()
-                            Page.Engine -> EngineScreen()
-                            Page.Settings -> SettingsScreen()
-                        }
-                    }
-
-                    AnimatedVisibility(
-                        visible = drawer,
-                        enter = fadeIn(tween(180)),
-                        exit = fadeOut(tween(140))
-                    ) {
-                        Box(
-                            Modifier.fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.55f))
-                                .clickable(
-                                    indication = null,
-                                    interactionSource = remember { MutableInteractionSource() }
-                                ) { drawer = false }
-                        )
-                    }
-
-                    AnimatedVisibility(
-                        visible = drawer,
-                        enter = slideInHorizontally(
-                            initialOffsetX = { -it },
-                            animationSpec = tween(260, easing = FastOutSlowInEasing)
-                        ) + fadeIn(tween(180)),
-                        exit = slideOutHorizontally(
-                            targetOffsetX = { -it },
-                            animationSpec = tween(220, easing = FastOutSlowInEasing)
-                        ) + fadeOut(tween(140))
-                    ) {
-                        NavigationDrawer(page) { selected ->
-                            page = selected
-                            drawer = false
-                        }
+        Scaffold(
+            containerColor = LaunchBackground,
+            topBar = { LauncherHeader(page, onPage = { page = it }) }
+        ) { insets ->
+            Box(
+                Modifier.fillMaxSize()
+                    .padding(insets)
+                    .background(LaunchBackground)
+            ) {
+                AnimatedContent(
+                    targetState = page,
+                    transitionSpec = {
+                        fadeIn(tween(170)) togetherWith fadeOut(tween(120))
+                    },
+                    label = "launcher-page"
+                ) { target ->
+                    when (target) {
+                        Page.Start -> StartPage(state, play)
+                        Page.Library -> LibraryPage(state)
+                        Page.Changelog -> ChangelogPage()
+                        Page.Settings -> SettingsPage()
                     }
                 }
             }
@@ -258,217 +166,221 @@ fun LauncherApp() {
     }
 }
 
-private enum class Page(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Home("Home", Icons.Default.Home),
-    Instances("Instances", Icons.Default.Dns),
-    Engine("Engine", Icons.Default.Speed),
+private enum class Page(val label: String, val icon: ImageVector) {
+    Start("Start", Icons.Default.Home),
+    Library("Library", Icons.Default.VideogameAsset),
+    Changelog("Changelog", Icons.Default.MenuBook),
     Settings("Settings", Icons.Default.Settings)
 }
 
 @Composable
-private fun NavigationDrawer(page: Page, onPage: (Page) -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxHeight().widthIn(min = 292.dp, max = 360.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
-        tonalElevation = 8.dp
-    ) {
-        Column(Modifier.fillMaxSize().padding(18.dp)) {
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+private fun LauncherHeader(page: Page, onPage: (Page) -> Unit) {
+    Surface(color = LaunchBackground, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().height(82.dp).padding(horizontal = 22.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    Modifier.size(42.dp),
+                    shape = RoundedCornerShape(13.dp),
+                    color = LaunchAccent
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Gamepad, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Icon(Icons.Default.Launch, null, tint = Color(0xFF092017))
                     }
                 }
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
+                Column {
                     Text("IMUX", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Windows launcher", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                IconButton(onClick = { onPage(page) }) {
-                    Icon(Icons.Default.Close, "Close navigation")
+                    Text(
+                        ImuxRelease.CURRENT_VERSION,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = LaunchMuted
+                    )
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-            Text(
-                "WORKSPACE",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-            )
+            Spacer(Modifier.width(18.dp))
+            Divider(Modifier.height(30.dp).width(1.dp))
+            Spacer(Modifier.width(10.dp))
 
-            Page.entries.forEach { item ->
-                NavigationDrawerItem(
-                    icon = { Icon(item.icon, null) },
-                    label = { Text(item.title) },
-                    selected = item == page,
-                    onClick = { onPage(item) },
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.padding(vertical = 3.dp)
+            Row(
+                Modifier.weight(1f)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Page.entries.forEach { item ->
+                    HeaderNav(item, selected = item == page, onClick = { onPage(item) })
+                }
+            }
+
+            Spacer(Modifier.width(10.dp))
+            Surface(shape = CircleShape, color = LaunchSurface2) {
+                Text(
+                    "GUEST",
+                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = LaunchMuted
                 )
             }
-
-            Spacer(Modifier.weight(1f))
-
-            Surface(
-                Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("DEVELOPMENT BUILD", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary)
-                    Text("Windows x64", style = MaterialTheme.typography.bodyMedium)
-                    Text("Imux launcher shell", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun LauncherContent(
-    content: @Composable ColumnScope.() -> Unit
-) {
+private fun HeaderNav(page: Page, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick),
+        color = if (selected) LaunchSurface2 else Color.Transparent,
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Icon(
+                page.icon,
+                null,
+                tint = if (selected) LaunchAccent else LaunchMuted,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                page.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) LaunchText else LaunchMuted
+            )
+        }
+    }
+}
+
+@Composable
+private fun PageFrame(content: @Composable ColumnScope.() -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val side = when {
-            maxWidth < 620.dp -> 16.dp
-            maxWidth < 1000.dp -> 24.dp
-            else -> 40.dp
+            maxWidth < 620.dp -> 14.dp
+            maxWidth < 980.dp -> 22.dp
+            else -> 42.dp
         }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = side, end = side, top = 12.dp, bottom = 112.dp
-            ),
+            contentPadding = PaddingValues(start = side, end = side, top = 24.dp, bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             item {
                 Column(
-                    Modifier.widthIn(max = 1180.dp).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    content()
-                }
+                    Modifier.fillMaxWidth().widthIn(max = 1240.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    content = content
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HomeScreen(state: LauncherUiState, onPlay: () -> Unit) {
+private fun StartPage(state: LauncherUiState, onPlay: () -> Unit) {
+    PageFrame {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth < 900.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    LaunchDeck(state, onPlay)
+                    LatestReleaseCard()
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(Modifier.weight(1.45f)) { LaunchDeck(state, onPlay) }
+                    Box(Modifier.weight(0.82f)) { LatestReleaseCard() }
+                }
+            }
+        }
+        SoonRail()
+    }
+}
+
+@Composable
+private fun LaunchDeck(state: LauncherUiState, onPlay: () -> Unit) {
     val profile = when (state) {
         is LauncherUiState.Ready -> state.profile
         is LauncherUiState.Launching -> state.profile
         is LauncherUiState.Running -> state.profile
         else -> null
     }
-
-    LauncherContent {
-        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Welcome back", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Your Imux environment is ready for development.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                if (maxWidth >= 820.dp) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Box(Modifier.weight(1.45f)) { ProfileHero(profile, state) }
-                        Box(Modifier.weight(1f)) { RuntimeCard(state) }
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        ProfileHero(profile, state)
-                        RuntimeCard(state)
-                    }
-                }
-            }
-
-            SectionTitle("Launcher")
-            QuickActionCard()
-            EnvironmentGrid()
-
-            SectionTitle("Engine status")
-            EngineStatusCard()
-        }
-    }
-}
-
-@Composable
-private fun ProfileHero(profile: InstallationProfile?, state: LauncherUiState) {
     val running = state is LauncherUiState.Running
-    val scale by animateFloatAsState(
-        targetValue = if (running) 1.02f else 1f,
-        animationSpec = tween(450, easing = FastOutSlowInEasing),
-        label = "profile-scale"
+    val playScale by animateFloatAsState(
+        targetValue = if (running) 0.98f else 1f,
+        animationSpec = tween(220, easing = FastOutSlowInEasing),
+        label = "play-scale"
     )
 
     Card(
-        Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale },
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = LaunchSurface)
     ) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    Modifier.size(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Gamepad, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("ACTIVE PROFILE", style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary)
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().heightIn(min = 430.dp, max = 560.dp)
+        ) {
+            Surface(
+                Modifier.size(260.dp).align(Alignment.TopEnd),
+                shape = CircleShape,
+                color = LaunchAccent.copy(alpha = 0.035f)
+            ) {}
+            Surface(
+                Modifier.size(160.dp).align(Alignment.BottomEnd).padding(22.dp),
+                shape = CircleShape,
+                color = LaunchAccentStrong.copy(alpha = 0.055f)
+            ) {}
+
+            Column(
+                Modifier.fillMaxSize().padding(30.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("SELECTED INSTANCE", style = MaterialTheme.typography.labelSmall, color = LaunchAccent)
                     Text(
-                        profile?.name ?: "Loading…",
-                        style = MaterialTheme.typography.headlineSmall,
+                        profile?.name ?: if (state is LauncherUiState.Loading) "Loading" else "Unavailable",
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Text(
+                        profile?.gameDir ?: "—",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = LaunchMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                StatusBadge(state)
-            }
-            Text(
-                "Windows x64  •  " + (profile?.version ?: "—"),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Surface(
-                Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("Memory profile", style = MaterialTheme.typography.labelMedium)
-                        Text("1–4 GB allocated", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    LaunchStateLine(state)
+                    FilledTonalButton(
+                        onClick = onPlay,
+                        enabled = state is LauncherUiState.Ready,
+                        modifier = Modifier.scale(playScale).fillMaxWidth().height(70.dp),
+                        shape = RoundedCornerShape(21.dp)
+                    ) {
+                        Icon(Icons.Default.Launch, null)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            when (state) {
+                                is LauncherUiState.Launching -> "STARTING"
+                                is LauncherUiState.Running -> "RUNNING"
+                                else -> "PLAY"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }
@@ -477,197 +389,159 @@ private fun ProfileHero(profile: InstallationProfile?, state: LauncherUiState) {
 }
 
 @Composable
-private fun StatusBadge(state: LauncherUiState) {
-    val text = when (state) {
-        is LauncherUiState.Ready -> if (state.runtimeAvailable) "READY" else "RUNTIME"
-        is LauncherUiState.Launching -> "STARTING"
-        is LauncherUiState.Running -> "RUNNING"
-        is LauncherUiState.Error -> "ERROR"
-        LauncherUiState.Loading -> "LOADING"
+private fun LaunchStateLine(state: LauncherUiState) {
+    val (primary, secondary) = when (state) {
+        LauncherUiState.Loading -> "LOADING" to "Reading launcher state"
+        is LauncherUiState.Ready -> "READY" to "Launch boundary is available"
+        is LauncherUiState.Launching -> "STARTING" to "Launching the configured game"
+        is LauncherUiState.Running -> "RUNNING" to "PID " + (state.pid ?: "unknown")
+        is LauncherUiState.Error -> "ERROR" to state.message
     }
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = if (state is LauncherUiState.Error) MaterialTheme.colorScheme.errorContainer
-        else MaterialTheme.colorScheme.primaryContainer
+
+    Row(
+        Modifier.fillMaxWidth()
+            .border(1.dp, LaunchOutline, RoundedCornerShape(16.dp))
+            .padding(horizontal = 15.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = if (state is LauncherUiState.Error) MaterialTheme.colorScheme.onErrorContainer
-            else MaterialTheme.colorScheme.onPrimaryContainer
-        )
+        Surface(
+            Modifier.size(9.dp),
+            CircleShape,
+            color = if (state is LauncherUiState.Error) Color(0xFFE57A7A) else LaunchAccent
+        ) {}
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            Text(
+                secondary,
+                style = MaterialTheme.typography.bodySmall,
+                color = LaunchMuted,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
 @Composable
-private fun RuntimeCard(state: LauncherUiState) {
+private fun LatestReleaseCard() {
+    val release = ImuxRelease.history.first()
     Card(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = LaunchSurface2)
     ) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(Modifier.size(42.dp), CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Speed, null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("Runtime", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Java environment", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            RuntimeLine("Java", "21")
-            RuntimeLine("Platform", "Windows x64")
-            RuntimeLine("Mods", "None")
-            RuntimeLine("Status", if (state is LauncherUiState.Ready && state.runtimeAvailable) "Available" else statusText(state))
-        }
-    }
-}
-
-@Composable
-private fun RuntimeLine(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun SectionTitle(title: String) {
-    Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.weight(1f))
-        Divider(Modifier.width(70.dp))
-    }
-}
-
-@Composable
-private fun QuickActionCard() {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-        Row(
-            Modifier.fillMaxWidth().padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(Modifier.size(42.dp), RoundedCornerShape(13.dp),
-                color = MaterialTheme.colorScheme.primaryContainer) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Folder, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Game directory", fontWeight = FontWeight.Medium)
-                Text(
-                    "%APPDATA%\\Imux",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            AssistChip(onClick = {}, label = { Text("DEFAULT") })
-        }
-    }
-}
-
-@Composable
-private fun EnvironmentGrid() {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val compact = maxWidth < 700.dp
-        if (compact) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Memory", "1–4 GB", Icons.Default.Memory)
-                MetricCard("Renderer", "D3D11", Icons.Default.Speed)
-                MetricCard("Storage", "SQLite", Icons.Default.Storage)
-            }
-        } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.weight(1f)) { MetricCard("Memory", "1–4 GB", Icons.Default.Memory) }
-                Box(Modifier.weight(1f)) { MetricCard("Renderer", "D3D11", Icons.Default.Speed) }
-                Box(Modifier.weight(1f)) { MetricCard("Storage", "SQLite", Icons.Default.Storage) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-            Text(label, style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
-@Composable
-private fun EngineStatusCard() {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            EngineRow("Graphics API", "Direct3D 11")
-            EngineRow("Shader", "HLSL")
-            EngineRow("Interop", "C / Rust boundary")
-            EngineRow("World", "First-person test scene")
-        }
-    }
-}
-
-@Composable
-private fun EngineRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, Modifier.widthIn(max = 190.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun InstancesScreen() {
-    LauncherContent {
-        ScreenHeader("Instances", "Separate environments for the Imux client.")
-        InstanceCard()
-        SectionTitle("Storage")
-        InfoCard("Instance data", "%APPDATA%\\Imux", "Configuration and launcher metadata are kept outside the renderer.")
-    }
-}
-
-@Composable
-private fun InstanceCard() {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp)) {
-        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(Modifier.size(48.dp), RoundedCornerShape(15.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Dns, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-                }
-                Spacer(Modifier.width(13.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Default Client", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text("Development profile", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                AssistChip(onClick = {}, label = { Text("ACTIVE") })
-            }
+        Column(Modifier.padding(26.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+            Text("WHAT'S NEW", style = MaterialTheme.typography.labelSmall, color = LaunchAccent)
+            Text("v" + release.version, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            Text(release.date, color = LaunchMuted, style = MaterialTheme.typography.bodySmall)
             Divider()
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                if (maxWidth < 620.dp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        RuntimeLine("Runtime", "Java 21")
-                        RuntimeLine("Memory", "1–4 GB")
-                        RuntimeLine("Mods", "None")
-                    }
-                } else {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(30.dp)) {
-                        RuntimeLine("Runtime", "Java 21")
-                        RuntimeLine("Memory", "1–4 GB")
-                        RuntimeLine("Mods", "None")
+            release.entries.take(3).forEach { entry ->
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("•", color = LaunchAccent, fontWeight = FontWeight.Bold)
+                    Text(entry, color = LaunchMuted)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SoonRail() {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("NEXT", style = MaterialTheme.typography.labelSmall, color = LaunchMuted)
+            Spacer(Modifier.width(10.dp))
+            Divider(Modifier.weight(1f))
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth < 760.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(2) { SoonCard() }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(3) { Box(Modifier.weight(1f)) { SoonCard() } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SoonCard() {
+    Surface(
+        Modifier.fillMaxWidth().height(70.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = LaunchSurface,
+        border = BorderStroke(1.dp, LaunchOutline)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text("SOON", style = MaterialTheme.typography.labelSmall, color = LaunchMuted)
+        }
+    }
+}
+
+@Composable
+private fun LibraryPage(state: LauncherUiState) {
+    val profile: InstallationProfile? = when (state) {
+        is LauncherUiState.Ready -> state.profile
+        is LauncherUiState.Launching -> state.profile
+        is LauncherUiState.Running -> state.profile
+        else -> null
+    }
+
+    PageFrame {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Library", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold)
+            Text("The current launch target is separated from the renderer.", color = LaunchMuted)
+        }
+
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(26.dp),
+            colors = CardDefaults.cardColors(containerColor = LaunchSurface)
+        ) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("ACTIVE", style = MaterialTheme.typography.labelSmall, color = LaunchAccent)
+                Text(profile?.name ?: "Unavailable", style = MaterialTheme.typography.headlineSmall)
+                DetailRow("Version", profile?.version ?: "—")
+                DetailRow("Directory", profile?.gameDir ?: "—")
+                DetailRow("State", profile?.status?.name ?: "—")
+            }
+        }
+
+        SoonCard()
+        SoonCard()
+    }
+}
+
+@Composable
+private fun ChangelogPage() {
+    PageFrame {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Changelog", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold)
+            Text("Release notes remain here until a new version is approved.", color = LaunchMuted)
+        }
+
+        ImuxRelease.history.forEach { release ->
+            Card(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(containerColor = LaunchSurface)
+            ) {
+                Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text("VERSION " + release.version, style = MaterialTheme.typography.labelSmall, color = LaunchAccent)
+                    Text(release.date, color = LaunchMuted, style = MaterialTheme.typography.bodySmall)
+                    Divider()
+                    release.entries.forEach { entry ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text("•", color = LaunchAccent)
+                            Text(entry, color = LaunchText)
+                        }
                     }
                 }
             }
@@ -676,85 +550,41 @@ private fun InstanceCard() {
 }
 
 @Composable
-private fun EngineScreen() {
-    LauncherContent {
-        ScreenHeader("Engine", "Native rendering and world systems.")
-        EngineDetail("Rendering", "D3D11 device, swap chain, depth buffer, first-person camera and HLSL pipeline.", Icons.Default.Speed)
-        EngineDetail("World", "Block test scene with collision floor, gravity, WASD movement, sprint and mouse look.", Icons.Default.Gamepad)
-        EngineDetail("Assets", "Block, GUI and panorama resources are packaged with the engine.", Icons.Default.Folder)
-        EngineDetail("Interop", "C ABI boundary keeps Rust systems and Kotlin launcher services separate from rendering.", Icons.Default.Build)
-        EngineDetail("Next", "Chunk storage, block registry, texture atlas, culling, raycast and real world interaction.", Icons.Default.Tune)
-    }
-}
+private fun SettingsPage() {
+    PageFrame {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Settings", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold)
+            Text("Only diagnostics have a concrete implementation right now.", color = LaunchMuted)
+        }
 
-@Composable
-private fun EngineDetail(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
-            Surface(Modifier.size(44.dp), RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-                }
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(26.dp),
+            colors = CardDefaults.cardColors(containerColor = LaunchSurface)
+        ) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DetailRow("Launcher version", ImuxRelease.CURRENT_VERSION)
+                DetailRow("Config", ImuxPaths.config.toString())
+                DetailRow("Logs", ImuxPaths.logs.toString())
+                DetailRow("Instances", ImuxPaths.instances.toString())
             }
         }
+
+        SoonCard()
+        SoonCard()
     }
 }
 
 @Composable
-private fun SettingsScreen() {
-    LauncherContent {
-        ScreenHeader("Settings", "Configuration without burying the important controls.")
-        SettingsSection("Appearance", "Material 3 dark theme, adaptive layout and animated navigation.", Icons.Default.Tune)
-        SettingsSection("Runtime", "Java 21 validation and launch service configuration.", Icons.Default.Speed)
-        SettingsSection("Storage", "%APPDATA%\\Imux, JSON configuration and SQLite metadata.", Icons.Default.Storage)
-        SettingsSection("Assets", "Native GUI, block textures and panorama resources.", Icons.Default.Folder)
-        SettingsSection("Advanced", "Renderer diagnostics, shader backend selection and development options.", Icons.Default.Build)
+private fun DetailRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(0.7f), color = LaunchMuted)
+        Text(
+            value,
+            Modifier.weight(1.3f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            fontWeight = FontWeight.Medium
+        )
     }
-}
-
-@Composable
-private fun SettingsSection(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoCard(title: String, value: String, description: String) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(value, color = MaterialTheme.colorScheme.primary)
-            Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun ScreenHeader(title: String, subtitle: String) {
-    Column(Modifier.fillMaxWidth().padding(bottom = 2.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
-        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-private fun statusText(state: LauncherUiState): String = when (state) {
-    is LauncherUiState.Ready -> if (state.runtimeAvailable) "Services ready" else "Runtime unavailable"
-    is LauncherUiState.Launching -> "Starting development runtime…"
-    is LauncherUiState.Running -> "Runtime started • PID " + (state.pid ?: "unknown")
-    is LauncherUiState.Error -> state.message
-    LauncherUiState.Loading -> "Loading configuration…"
 }
