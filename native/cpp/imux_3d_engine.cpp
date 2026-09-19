@@ -238,7 +238,7 @@ float4 PSMain(VSOutput input) {
         {"COLOR",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,24,D3D11_INPUT_PER_VERTEX_DATA,0},
         {"TEXCOORD",1,DXGI_FORMAT_R32G32_FLOAT,0,40,D3D11_INPUT_PER_VERTEX_DATA,0}
     };
-    if (FAILED(g_device->CreateInputLayout(layout,static_cast<UINT>(std::size(layout)),vsBlob->GetBufferPointer(),vsBlob->GetBufferSize(),&g_inputLayout))) return false;
+    if (FAILED(g_device->CreateInputLayout(layout,static_cast<UINT>(sizeof(layout) / sizeof(layout[0])),vsBlob->GetBufferPointer(),vsBlob->GetBufferSize(),&g_inputLayout))) return false;
     BuildScene();
     return CreateTargets();
 }
