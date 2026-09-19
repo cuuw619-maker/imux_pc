@@ -77,6 +77,8 @@ UiViewport CalculateUiViewport(float width, float height) {
     };
 }
 
+void Log(const char* format, ...);
+
 D2D1_POINT_2F ToDesignPoint(const UiViewport& viewport, float x, float y) {
     return D2D1::Point2F(
         (x - viewport.offsetX) / viewport.scale,
