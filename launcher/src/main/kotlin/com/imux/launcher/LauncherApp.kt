@@ -154,14 +154,16 @@ fun LauncherApp() {
         }
 
         val play: () -> Unit = {
-            val ready = state as? LauncherUiState.Ready ?: return@let
-            state = LauncherUiState.Launching(ready.profile)
-            scope.launch {
-                val result = gameLauncher.launch(ready.profile)
-                state = if (result.started) {
-                    LauncherUiState.Running(ready.profile, result.processId)
-                } else {
-                    LauncherUiState.Error(result.message)
+            if (state is LauncherUiState.Ready) {
+                val ready = state as LauncherUiState.Ready
+                state = LauncherUiState.Launching(ready.profile)
+                scope.launch {
+                    val result = gameLauncher.launch(ready.profile)
+                    state = if (result.started) {
+                        LauncherUiState.Running(ready.profile, result.processId)
+                    } else {
+                        LauncherUiState.Error(result.message)
+                    }
                 }
             }
         }
