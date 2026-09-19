@@ -378,7 +378,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (g_page == 0 && Hit(play, x, y)) {
             g_target.Reset(); g_brush.Reset();
             g_inWorld = imux_world_run(hwnd) != 0;
-            if (!g_inWorld) CreateUiTarget(hwnd);
+            if (!g_inWorld) InitializeGraphics(hwnd);
         }
         return 0;
     }
@@ -410,6 +410,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     return DefWindowProc(hwnd, msg, wp, lp);
+}
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
