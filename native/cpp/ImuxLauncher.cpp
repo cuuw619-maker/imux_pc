@@ -783,8 +783,10 @@ void RenderStart(float left, float right, float top, float bottom) {
 
     if (compact) {
         const float heroBottom = std::min(bottom - 170.0f, contentTop + 290.0f);
-        RenderLaunchCard({left, contentTop, right, heroBottom});
-        RenderReleaseCard({left, heroBottom + gap, right, bottom});
+        const Rect launchFallback{left, contentTop, right, heroBottom};
+        const Rect releaseFallback{left, heroBottom + gap, right, bottom};
+        RenderLaunchCard(EditorVisual("start.launch.card", launchFallback));
+        RenderReleaseCard(EditorVisual("start.release.card", releaseFallback));
     } else {
         const float heroRight = left + available * 0.66f;
         const Rect launchFallback{left, contentTop, heroRight - gap * 0.5f, bottom};
@@ -1054,7 +1056,7 @@ int HeaderPageAt(float x, float y) {
     const float navStart = 176.0f;
     const float navW = 106.0f;
     for (int i = 0; i < 4; ++i) {
-        const Rect fallback{navStart + i * navW, 18.0f, navStart + i * navW + navW - 7.0f, 68.0f};
+        const Rect fallback{navStart + i * navW, 21.0f, navStart + i * navW + navW - 7.0f, 63.0f};
         if (Hit(EditorHitbox(ids[i], fallback), x, y)) return i;
     }
     return -1;
