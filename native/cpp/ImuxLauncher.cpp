@@ -210,7 +210,7 @@ void Render(HWND hwnd) {
         Color(0.0f, 0.0f, 0.0f, 0.30f * g_drawerProgress);
         g_target->FillRectangle(D2D1::RectF(0, topBar, width, height - bottomBar), g_brush.Get());
 
-        const float drawerWidth = std::min(310.0f, width * 0.82f);
+        const float drawerWidth = (width * 0.82f < 310.0f ? width * 0.82f : 310.0f);
         const float x = Lerp(-drawerWidth, 0.0f, g_drawerProgress);
         Color(0.055f, 0.067f, 0.085f);
         g_target->FillRectangle(D2D1::RectF(x, 0, x + drawerWidth, height), g_brush.Get());
