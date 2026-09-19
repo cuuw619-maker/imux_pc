@@ -13,7 +13,7 @@ target_include_directories(imux_native PUBLIC include)
 set_target_properties(imux_native PROPERTIES OUTPUT_NAME "imux_native")
 
 if (WIN32)
-    set(IMUX_GENERATED_ICON "${CMAKE_CURRENT_BINARY_DIR}/imux_icon.ico")
+    set(IMUX_GENERATED_ICON "${CMAKE_BINARY_DIR}/imux_icon.ico")
     if (NOT EXISTS "${IMUX_GENERATED_ICON}")
         message(FATAL_ERROR "Missing generated Imux icon: ${IMUX_GENERATED_ICON}. Run tools/python/convert_icon.py before configuring the native build.")
     endif()
