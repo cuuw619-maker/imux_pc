@@ -1,10 +1,13 @@
 name: Build Imux
+
 on:
   push:
     branches: [ main ]
   pull_request:
+
 permissions:
   contents: read
+
 jobs:
   jvm:
     runs-on: ubuntu-latest
@@ -26,10 +29,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure CMake
-        run: cmake -S native -B native/build -A x64
-      - name: Build native library
-        run: cmake --build native/build --config Release
+      - name: Configure native launcher
+        run: cmake -S . -B build/native -A x64
+      - name: Build native launcher
+        run: cmake --build build/native --config Release
+      - name: Upload native launcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: imux-launcher-windows-x64
+          path: |
+            build/native/bin/ImuxLauncher.exe
+            build/native/bin/imux_ui.hlsl
+          if-no-files-found: error
 
   rust:
     runs-on: windows-latest
@@ -51,15 +62,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
-      - name: Test
+      - name: JVM tests
         run: gradle test
-      - name: Build Windows distribution
-        run: gradle :launcher:createReleaseDistributable :launcher:packageReleaseExe
-      - name: Upload Windows package
-        uses: actions/upload-artifact@v4
-        with:
-          name: imux-windows-x64
-          path: |
-            launcher/build/compose/binaries/main-release/app/**
-            launcher/build/compose/binaries/main-release/exe/*.exe
-          if-no-files-found: warn
+      - name: Build native launcher
+        run: |
+          cmake -S . -B build/native -A x64
+          cmake --build build/native --config Release
+      - name: Verify native executable
+        shell: pwsh
+        run: |
+          if (!(Test-Path "build/native/bin/ImuxLauncher.exe")) {
+            throw "ImuxLauncher.exe was not produced"
+          }
