@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(imux_native LANGUAGES C CXX)
+project(imux_native VERSION 0.0.1 LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
