@@ -166,7 +166,8 @@ void Render(HWND hwnd) {
             L"Rust backend connected through stable native contracts",
             L"CMake + Gradle + CI validation"
         };
-        const float calculatedRowH = (contentBottom - bodyTop) / 5.0f - 8.0f;\n        const float rowH = calculatedRowH > 44.0f ? calculatedRowH : 44.0f;
+        const float calculatedRowH = (contentBottom - bodyTop) / 5.0f - 8.0f;
+        const float rowH = calculatedRowH > 44.0f ? calculatedRowH : 44.0f;
         for (int i = 0; i < 5; ++i) {
             const float y = bodyTop + i * (rowH + 8.0f);
             Color(0.075f, 0.090f, 0.115f);
