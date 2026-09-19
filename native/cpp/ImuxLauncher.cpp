@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 #include "imux_3d_engine.h"
 
 using Microsoft::WRL::ComPtr;
@@ -102,10 +103,11 @@ enum class EditorHandle {
 
 struct EditorItem;
 struct LauncherLayout;
+float Clamp(float value, float lo, float hi);
 void InitializeEditorItems();
 void SaveEditorJson();
 void RenderEditorOverlay();
-void EditorResetSelected();
+void EditorResetSelected(HWND hwnd);
 EditorItem* FindEditorItem(const std::string& id);
 const EditorItem* FindEditorItem(const std::string& id);
 Rect EditorVisual(const std::string& id, const Rect& fallback);
@@ -134,6 +136,28 @@ bool ClientToUiPoint(float x, float y, D2D1_POINT_2F& result) {
 
     if (identity) {
         transform = g_uiTransform;
+
+        const bool storedIdentity =
+            std::abs(transform._11 - 1.0f) < 0.0001f &&
+            std::abs(transform._22 - 1.0f) < 0.0001f &&
+            std::abs(transform._12) < 0.0001f &&
+            std::abs(transform._21) < 0.0001f &&
+            std::abs(transform._31) < 0.0001f &&
+            std::abs(transform._32) < 0.0001f;
+
+        if (storedIdentity) {
+            RECT client{};
+            GetClientRect(GetActiveWindow(), &client);
+            const UiViewport viewport = CalculateUiViewport(
+                static_cast<float>(client.right),
+                static_cast<float>(client.bottom)
+            );
+            transform = D2D1::Matrix3x2F(
+                viewport.scale, 0.0f,
+                0.0f, viewport.scale,
+                viewport.offsetX, viewport.offsetY
+            );
+        }
     }
 
     if (!D2D1InvertMatrix(&transform)) {
@@ -467,7 +491,7 @@ void RenderEditorOverlay() {
          {62.0f, 162.0f, 590.0f, 180.0f}, g_label);
 }
 
-void EditorResetSelected() {
+void EditorResetSelected(HWND hwnd) {
     auto* item = FindEditorItem(g_editorSelected);
     if (!item) return;
 
@@ -475,7 +499,7 @@ void EditorResetSelected() {
         ? item->defaultVisual
         : item->defaultHitbox;
     SaveEditorJson();
-    InvalidateRect(nullptr, nullptr, FALSE);
+    InvalidateRect(hwnd, nullptr, FALSE);
 }
 
 
@@ -1150,7 +1174,7 @@ bool HandleEditorKey(HWND hwnd, WPARAM wp, LPARAM lp) {
     }
 
     if (wp == VK_BACK) {
-        EditorResetSelected();
+        EditorResetSelected(hwnd);
         return true;
     }
 
@@ -1228,7 +1252,6 @@ void UpdateEditorDrag(HWND hwnd, float x, float y) {
 
     EditorActiveRect(*item) = updated;
     ClampEditorRect(EditorActiveRect(*item));
-    SaveEditorJson();
     InvalidateRect(hwnd, nullptr, FALSE);
 }
 
