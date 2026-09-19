@@ -50,6 +50,7 @@ int g_page = 0;
 bool g_inWorld = false;
 bool g_hoverPlay = false;
 bool g_fullscreen = false;
+D2D1_MATRIX_3X2_F g_uiTransform = D2D1::Matrix3x2F::Identity();
 WINDOWPLACEMENT g_windowedPlacement{sizeof(WINDOWPLACEMENT)};
 LONG_PTR g_windowedStyle = 0;
 LONG_PTR g_windowedExStyle = 0;
@@ -81,6 +82,21 @@ D2D1_POINT_2F ToDesignPoint(const UiViewport& viewport, float x, float y) {
         (x - viewport.offsetX) / viewport.scale,
         (y - viewport.offsetY) / viewport.scale
     );
+}
+
+bool ClientToUiPoint(float x, float y, D2D1_POINT_2F& result) {
+    const float determinant =
+        g_uiTransform._11 * g_uiTransform._22 -
+        g_uiTransform._12 * g_uiTransform._21;
+
+    if (std::fabs(determinant) < 0.000001f) return false;
+
+    const float dx = x - g_uiTransform._31;
+    const float dy = y - g_uiTransform._32;
+
+    result.x = (dx * g_uiTransform._22 - dy * g_uiTransform._21) / determinant;
+    result.y = (dy * g_uiTransform._11 - dx * g_uiTransform._12) / determinant;
+    return true;
 }
 
 struct LauncherLayout {
@@ -532,13 +548,12 @@ void Render(HWND hwnd) {
     Color(0.028f, 0.034f, 0.044f);
     g_target->Clear(D2D1::ColorF(0.028f, 0.034f, 0.044f));
 
-    g_target->SetTransform(
-        D2D1::Matrix3x2F(
-            viewport.scale, 0.0f,
-            0.0f, viewport.scale,
-            viewport.offsetX, viewport.offsetY
-        )
+    g_uiTransform = D2D1::Matrix3x2F(
+        viewport.scale, 0.0f,
+        0.0f, viewport.scale,
+        viewport.offsetX, viewport.offsetY
     );
+    g_target->SetTransform(g_uiTransform);
 
     RenderHeader(kDesignWidth);
 
@@ -759,6 +774,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
 
+        case WM_DPICHANGED:
+            Log("WM_DPICHANGED: dpi=%u", LOWORD(wp));
+            if (g_target) InvalidateRect(hwnd, nullptr, FALSE);
+            return 0;
+
         case WM_SIZE:
             if (g_target) {
                 const UINT w = static_cast<UINT>(LOWORD(lp));
@@ -773,11 +793,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const float y = static_cast<float>(GET_Y_LPARAM(lp));
             RECT rc{};
             GetClientRect(hwnd, &rc);
-            const UiViewport viewport = CalculateUiViewport(
-                static_cast<float>(rc.right),
-                static_cast<float>(rc.bottom)
-            );
-            const D2D1_POINT_2F point = ToDesignPoint(viewport, x, y);
+            D2D1_POINT_2F point{};
+            if (!ClientToUiPoint(x, y, point)) return 0;
             const LauncherLayout layout = CalculateLauncherLayout();
             const bool hover = g_page == 0 && Hit(layout.playRect, point.x, point.y);
             if (hover != g_hoverPlay) {
@@ -792,10 +809,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const float y = static_cast<float>(GET_Y_LPARAM(lp));
             RECT rc{};
             GetClientRect(hwnd, &rc);
-            const float width = static_cast<float>(rc.right);
-            const float height = static_cast<float>(rc.bottom);
-            const UiViewport viewport = CalculateUiViewport(width, height);
-            const D2D1_POINT_2F point = ToDesignPoint(viewport, x, y);
+            const D2D1_POINT_2F point = [&]() {
+                D2D1_POINT_2F transformed{};
+                ClientToUiPoint(x, y, transformed);
+                return transformed;
+            }();
 
             const int headerPage = HeaderPageAt(point.x, point.y);
             if (headerPage >= 0) {
@@ -876,7 +894,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     std::set_terminate(ImuxTerminate);
 
     Log("wWinMain entered");
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    const HRESULT dpiResult = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    Log("SetProcessDpiAwarenessContext: result=0x%08lX", static_cast<unsigned long>(dpiResult));
 
     WNDCLASSEXW wc{sizeof(WNDCLASSEXW)};
     wc.hInstance = instance;
