@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cmath>
+#include <utility>
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
@@ -244,7 +245,7 @@ void InitializeGraphics(HWND hwnd) {
     g_d2dFactory->CreateHwndRenderTarget(
         D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT),
         D2D1::HwndRenderTargetProperties(hwnd, D2D1::SizeU(
-            std::max<LONG>(1, rc.right), std::max<LONG>(1, rc.bottom))), &g_target);
+            (rc.right > 1 ? rc.right : 1), (rc.bottom > 1 ? rc.bottom : 1))), &g_target);
     g_target->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), &g_brush);
 
     g_writeFactory->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_SEMI_BOLD,
@@ -319,7 +320,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (Hit(menu, x, y)) { SetDrawer(hwnd, !g_drawerOpen); return 0; }
 
         if (g_drawerOpen) {
-            const float drawerWidth = std::min(310.0f, width * 0.82f);
+            const float drawerWidth = (width * 0.82f < 310.0f ? width * 0.82f : 310.0f);
             if (x <= drawerWidth) {
                 for (int i = 0; i < 4; ++i) {
                     const Rect item = {16, 118.0f + i * 54.0f, drawerWidth - 16, 164.0f + i * 54.0f};
