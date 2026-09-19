@@ -6,6 +6,6 @@ import com.imux.runtime.ImuxPaths
 fun main() {
     ImuxPaths.initialize()
     application {
-        Window(onCloseRequest = ::exitApplication, title = "Imux", icon = painterResource("icon.webp")) { LauncherApp() }
+        Window(\n            onCloseRequest = ::exitApplication,\n            title = "Imux",\n            icon = painterResource("icon.webp"),\n            state = WindowState(placement = WindowPlacement.Maximized)\n        ) {\n            LauncherApp()\n        }
     }
 }
