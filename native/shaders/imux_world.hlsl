@@ -1,7 +1,7 @@
 cbuffer Camera : register(b0) {
     matrix worldViewProjection;
     float time;
-    float3 padding;
+    float3 cameraPosition;
 };
 
 struct VSInput {
@@ -37,5 +37,12 @@ float4 PSMain(VSOutput input) : SV_TARGET {
     float diffuse = saturate(dot(normalize(input.normal), lightDirection)) * 0.65 + 0.35;
     float pulse = 0.025 * sin(time * 1.7 + input.worldPosition.x * 0.15);
     float3 texel = blockTexture.Sample(blockSampler, input.uv).rgb;
-    return float4(texel * input.color.rgb * (diffuse + pulse), 1.0);
+    float3 lit = texel * input.color.rgb * (diffuse + pulse);
+    float distanceToCamera = distance(input.worldPosition, cameraPosition);
+    float fog = saturate((distanceToCamera - 28.0) / 52.0);
+    float3 atmospheric = float3(0.10, 0.18, 0.22);
+    lit = lerp(lit, atmospheric, fog * 0.58);
+    float edge = pow(1.0 - saturate(dot(normalize(input.normal), normalize(float3(0.2, 0.5, -0.7)))), 3.0);
+    lit += edge * float3(0.04, 0.11, 0.09);
+    return float4(lit, 1.0);
 }
