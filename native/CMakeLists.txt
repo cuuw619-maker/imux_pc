@@ -16,6 +16,7 @@ if (WIN32)
     add_executable(ImuxLauncher WIN32
         cpp/ImuxLauncher.cpp
         cpp/imux_ui_engine.cpp
+        cpp/imux_3d_engine.cpp
     )
     target_include_directories(ImuxLauncher PRIVATE include)
     target_link_libraries(ImuxLauncher PRIVATE d2d1 dwrite d3d11 d3dcompiler)
@@ -28,6 +29,11 @@ if (WIN32)
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/shaders/imux_ui.hlsl"
         "${CMAKE_BINARY_DIR}/bin/imux_ui.hlsl"
+        COPYONLY
+    )
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/imux_world.hlsl"
+        "${CMAKE_BINARY_DIR}/bin/imux_world.hlsl"
         COPYONLY
     )
 endif()
