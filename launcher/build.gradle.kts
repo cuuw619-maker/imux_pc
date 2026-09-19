@@ -21,9 +21,9 @@ compose.desktop {
         mainClass = "com.imux.launcher.MainKt"
         nativeDistributions {
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
-            packageName = "ImuxDev"
-            packageVersion = "0.1.0"
-            description = "Imux development launcher shell"
+            packageName = "Imux"
+            packageVersion = "0.0.1"
+            description = "Imux Windows launcher"
             vendor = "Imux"
             windows {
                 menuGroup = "Imux"
