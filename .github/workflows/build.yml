@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Validate engine structure
+      - name: Validate project structure
         run: python tools/python/validate_project.py
 
   jvm:
@@ -34,81 +34,6 @@ jobs:
         run: gradle test
       - name: Build modules
         run: gradle build
-
-  native:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Prepare Windows icon
-        run: |
-          python -m pip install --disable-pip-version-check pillow
-          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/native/imux_icon.ico
-      - name: Configure native launcher
-        run: cmake -S . -B build/native -A x64
-      - name: Build native launcher
-        run: cmake --build build/native --config Release
-
-      - name: Import signing certificate
-        if: ${{ github.event_name != 'pull_request' }}
-        shell: pwsh
-        env:
-          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
-          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-        run: |
-          $pfxPath = Join-Path $env:RUNNER_TEMP "imux-signing.pfx"
-          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
-          $securePassword = ConvertTo-SecureString $env:WINDOWS_CERT_PASSWORD -AsPlainText -Force
-          $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
-          if ($null -eq $cert) { throw "Failed to import signing certificate" }
-          "IMUX_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Remove-Item $pfxPath -Force
-
-      - name: Sign native launcher
-        if: ${{ github.event_name != 'pull_request' && env.IMUX_CERT_THUMBPRINT != '' }}
-        shell: pwsh
-        run: |
-          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if ($null -eq $signtool) { throw "signtool.exe was not found" }
-          & $signtool.FullName sign /sha1 $env:IMUX_CERT_THUMBPRINT /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com "build/native/bin/ImuxLauncher.exe"
-          if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
-
-      - name: Verify executable signature
-        shell: pwsh
-        run: |
-          $exe = Get-Item "build/native/bin/ImuxLauncher.exe"
-          $signature = Get-AuthenticodeSignature $exe.FullName
-          Write-Host "Signature status: $($signature.Status)"
-          Write-Host "Signer: $($signature.SignerCertificate.Subject)"
-          if ($signature.Status -eq "NotSigned") {
-            throw "ImuxLauncher.exe is not signed"
-          }
-
-      - name: Prepare clean Windows artifact
-        shell: pwsh
-        run: |
-          $stage = "build/imux-windows-x64"
-          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Path $stage | Out-Null
-          Copy-Item "build/native/bin/ImuxLauncher.exe" "$stage/ImuxLauncher.exe"
-          Copy-Item "build/native/bin/imux_ui.hlsl" "$stage/imux_ui.hlsl"
-          Copy-Item "build/native/bin/imux_world.hlsl" "$stage/imux_world.hlsl"
-          Copy-Item "build/native/bin/assets" "$stage/assets" -Recurse
-          Get-FileHash "$stage/ImuxLauncher.exe" -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  ImuxLauncher.exe" } |
-            Set-Content "$stage/SHA256SUMS.txt" -Encoding ascii
-
-      - name: Upload native launcher
-        uses: actions/upload-artifact@v4
-        with:
-          name: imux-launcher-windows-x64
-          retention-days: 7
-          path: build/imux-windows-x64
-          if-no-files-found: error
 
   rust:
     runs-on: windows-latest
@@ -129,23 +54,103 @@ jobs:
       - name: Prepare Windows icon
         run: |
           python -m pip install --disable-pip-version-check pillow
-          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/native/imux_icon.ico
+          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/imux_icon.ico
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
+
       - name: JVM tests
         run: gradle test
-      - name: Build native launcher
-        run: |
-          cmake -S . -B build/native -A x64
-          cmake --build build/native --config Release
-      - name: Verify native executable
+
+      - name: Build Kotlin launcher distribution
+        run: gradle :launcher:createDistributable
+
+      - name: Configure game runtime
+        run: cmake -S . -B build/native -A x64
+
+      - name: Build game runtime
+        run: cmake --build build/native --config Release
+
+      - name: Verify launcher and game
         shell: pwsh
         run: |
-          if (!(Test-Path "build/native/bin/ImuxLauncher.exe")) {
-            throw "ImuxLauncher.exe was not produced"
+          $launcher = "build/compose/binaries/main/app/Imux/Imux.exe"
+          $game = "build/native/bin/ImuxGame.exe"
+          if (!(Test-Path $launcher)) { throw "Kotlin launcher executable was not produced: $launcher" }
+          if (!(Test-Path $game)) { throw "Game executable was not produced: $game" }
+          Write-Host "Launcher: $launcher"
+          Write-Host "Game: $game"
+
+      - name: Import signing certificate
+        if: ${{ github.event_name != 'pull_request' }}
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $pfxPath = Join-Path $env:RUNNER_TEMP "imux-signing.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $securePassword = ConvertTo-SecureString $env:WINDOWS_CERT_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
+          if ($null -eq $cert) { throw "Failed to import signing certificate" }
+          "IMUX_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Remove-Item $pfxPath -Force
+
+      - name: Sign launcher and game
+        if: ${{ github.event_name != 'pull_request' && env.IMUX_CERT_THUMBPRINT != '' }}
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if ($null -eq $signtool) { throw "signtool.exe was not found" }
+          foreach ($exe in @(
+            "build/compose/binaries/main/app/Imux/Imux.exe",
+            "build/native/bin/ImuxGame.exe"
+          )) {
+            & $signtool.FullName sign /sha1 $env:IMUX_CERT_THUMBPRINT /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com $exe
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed for $exe with exit code $LASTEXITCODE" }
           }
+
+      - name: Verify executable signatures
+        shell: pwsh
+        run: |
+          foreach ($exe in @(
+            "build/compose/binaries/main/app/Imux/Imux.exe",
+            "build/native/bin/ImuxGame.exe"
+          )) {
+            $signature = Get-AuthenticodeSignature (Resolve-Path $exe)
+            Write-Host "$exe => $($signature.Status)"
+            if ($signature.Status -eq "NotSigned") { throw "$exe is not signed" }
+          }
+
+      - name: Prepare clean Windows artifact
+        shell: pwsh
+        run: |
+          $stage = "build/imux-windows-x64"
+          $app = "build/compose/binaries/main/app/Imux"
+          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item $app "$stage/Imux" -Recurse
+          Copy-Item "build/native/bin/ImuxGame.exe" "$stage/Imux/ImuxGame.exe"
+          Copy-Item "build/native/bin/assets" "$stage/Imux/assets" -Recurse
+          Get-FileHash "$stage/Imux/Imux.exe" -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  Imux.exe" } |
+            Set-Content "$stage/SHA256SUMS.txt" -Encoding ascii
+          Get-FileHash "$stage/Imux/ImuxGame.exe" -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  ImuxGame.exe" } |
+            Add-Content "$stage/SHA256SUMS.txt" -Encoding ascii
+
+      - name: Upload Windows launcher artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: imux-windows-x64
+          retention-days: 7
+          path: build/imux-windows-x64
+          if-no-files-found: error
