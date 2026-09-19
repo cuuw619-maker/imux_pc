@@ -275,7 +275,7 @@ bool Initialize() {
     const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0};
     UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
     HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-        creationFlags, levels, 2, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
+        creationFlags, levels, 1, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
     WorldLog("D3D11CreateDeviceAndSwapChain hardware/flip: hr=0x%08lX", static_cast<unsigned long>(hr));
     if (FAILED(hr)) {
         g_swapChain.Reset();
@@ -283,7 +283,7 @@ bool Initialize() {
         g_context.Reset();
         desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
         hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-            creationFlags, levels, 2, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
+            creationFlags, levels, 1, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
         WorldLog("D3D11CreateDeviceAndSwapChain hardware/discard: hr=0x%08lX", static_cast<unsigned long>(hr));
     }
     if (FAILED(hr)) {
@@ -291,7 +291,7 @@ bool Initialize() {
         g_device.Reset();
         g_context.Reset();
         hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr,
-            creationFlags, levels, 2, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
+            creationFlags, levels, 1, D3D11_SDK_VERSION, &desc, &g_swapChain, &g_device, &level, &g_context);
         WorldLog("D3D11CreateDeviceAndSwapChain WARP: hr=0x%08lX", static_cast<unsigned long>(hr));
     }
     if (FAILED(hr)) return false;
