@@ -130,6 +130,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prepare Windows icon
+        run: |
+          python -m pip install --disable-pip-version-check pillow
+          python tools/python/convert_icon.py launcher/src/main/resources/icon.webp build/native/imux_icon.ico
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
