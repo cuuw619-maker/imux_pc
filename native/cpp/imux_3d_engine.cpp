@@ -282,7 +282,7 @@ void RenderFrame() {
     g_context->VSSetShader(g_vertexShader.Get(),nullptr,0);
     g_context->VSSetConstantBuffers(0,1,g_constantBuffer.GetAddressOf());
     g_context->PSSetShader(g_pixelShader.Get(),nullptr,0);
-    g_context->DrawIndexed(6*6*6,0,0);
+    g_context->DrawIndexed(180,0,0);
     g_swapChain->Present(1,0);
 }
 
