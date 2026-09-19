@@ -20,7 +20,7 @@ jobs:
       - name: Test
         run: gradle test
       - name: Build modules
-        run: gradle build -x :launcher:compileKotlinDesktop
+        run: gradle build
 
   native:
     runs-on: windows-latest
