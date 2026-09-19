@@ -125,10 +125,14 @@ private fun NavigationDrawer(page: Page, compact: Boolean, onPage: (Page) -> Uni
 
 @Composable
 private fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp), content = content
-    )
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val horizontal = if (maxWidth < 1000.dp) 20.dp else 32.dp
+        Column(
+            Modifier.fillMaxWidth().widthIn(max = 1180.dp).align(Alignment.TopCenter)
+                .padding(horizontal = horizontal, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp), content = content
+        )
+    }
 }
 
 @Composable
@@ -140,26 +144,28 @@ private fun HomeScreen(state: LauncherUiState, onPlay: () -> Unit) {
         else -> null
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val narrow = maxWidth < 720.dp
+        val compact = maxWidth < 900.dp
         ScreenFrame {
             Text("Your game environment", style = MaterialTheme.typography.headlineLarge)
-            Text("A focused place to launch and manage your client.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
-                if (narrow) {
-                    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        ProfileInfo(profile, state)
-                    }
-                } else {
-                    Row(Modifier.fillMaxWidth().padding(28.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { ProfileInfo(profile, state) }
-                    }
+            Text(
+                "One clear launch action. Everything else stays out of the way.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (compact) {
+                ProfileCard(profile, state)
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Box(Modifier.weight(1.6f)) { ProfileCard(profile, state) }
+                    QuickStatus()
                 }
             }
+
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 FilledTonalButton(
-                    onClick = onPlay, enabled = state is LauncherUiState.Ready,
+                    onClick = onPlay,
+                    enabled = state is LauncherUiState.Ready,
                     contentPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp)
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
@@ -168,6 +174,68 @@ private fun HomeScreen(state: LauncherUiState, onPlay: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileCard(profile: InstallationProfile?, state: LauncherUiState) {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
+        Column(
+            Modifier.fillMaxWidth().padding(28.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("ACTIVE PROFILE", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary)
+            Text(profile?.name ?: "Loading…", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                "Windows x64  •  " + (profile?.version ?: "—"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(18.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Row(Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("READY", color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.width(18.dp))
+                    Text(
+                        when (state) {
+                            is LauncherUiState.Ready -> if (state.runtimeAvailable) "Services ready" else "Runtime unavailable"
+                            is LauncherUiState.Launching -> "Starting test world…"
+                            is LauncherUiState.Running -> "Test world running"
+                            is LauncherUiState.Error -> state.message
+                            LauncherUiState.Loading -> "Loading configuration…"
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickStatus() {
+    Card(Modifier.weight(1f).fillMaxHeight(), shape = RoundedCornerShape(28.dp)) {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Text("Quick status", style = MaterialTheme.typography.titleMedium)
+            StatusLine("Runtime", "Java 21")
+            StatusLine("Memory", "1–4 GB")
+            StatusLine("Mods", "None")
+        }
+    }
+}
+
+@Composable
+private fun StatusLine(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
