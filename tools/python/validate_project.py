@@ -17,6 +17,7 @@ required = [
     "rust/crates/imux-core/src/world.rs",
     "launcher/src/main/kotlin/com/imux/launcher/LauncherMetadataStore.kt",
     "launcher/src/main/resources/icon.webp",
+    "tools/python/convert_icon.py",
     "native/assets/blocks/dirt.png",
     "native/assets/blocks/stone.png",
     "native/assets/gui/crosshair.png",
@@ -32,7 +33,7 @@ launcher = (ROOT / "native/cpp/ImuxLauncher.cpp").read_text(encoding="utf-8")
 world = (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8")
 
 checks = {
-    "responsive centered layout": "contentWidth" in launcher and "1180.0f" in launcher,
+    "responsive centered layout": "contentWidth" in launcher and ("1180.0f" in launcher or "1240.0f" in launcher),
     "play boundary": "PLAY" in launcher and "imux_world_run" in launcher,
     "world movement": "GetAsyncKeyState('W')" in world and "GetCursorPos" in world,
     "world rendering": "D3D11CreateDeviceAndSwapChain" in world,
