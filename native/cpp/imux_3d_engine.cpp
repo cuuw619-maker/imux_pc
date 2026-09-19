@@ -2,6 +2,7 @@
 #include "imux_3d_engine.h"
 
 #include <windows.h>
+#include <windowsx.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
@@ -10,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <cstring>
 
 using DirectX::XMFLOAT3;
 using DirectX::XMMATRIX;
