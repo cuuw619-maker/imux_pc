@@ -422,7 +422,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     HWND hwnd = CreateWindowExW(0, kWindowClass, kWindowTitle, WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 1280, 760, nullptr, nullptr, instance, nullptr);
     if (!hwnd) return 1;
-    ShowWindow(hwnd, show); UpdateWindow(hwnd);
+    // Start maximized so the launcher uses the full available work area on Windows.\n    // The UI itself remains bounded by the live client rectangle and responsive layout.\n    ShowWindow(hwnd, SW_MAXIMIZE); UpdateWindow(hwnd);
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
     return static_cast<int>(msg.wParam);
