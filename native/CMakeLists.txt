@@ -19,7 +19,7 @@ if (WIN32)
         cpp/imux_3d_engine.cpp
     )
     target_include_directories(ImuxLauncher PRIVATE include)
-    target_link_libraries(ImuxLauncher PRIVATE d2d1 dwrite d3d11 d3dcompiler)
+    target_link_libraries(ImuxLauncher PRIVATE d2d1 dwrite d3d11 d3dcompiler windowscodecs ole32)
     target_compile_definitions(ImuxLauncher PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
     set_target_properties(ImuxLauncher PROPERTIES
         OUTPUT_NAME "ImuxLauncher"
@@ -36,4 +36,5 @@ if (WIN32)
         "${CMAKE_BINARY_DIR}/bin/imux_world.hlsl"
         COPYONLY
     )
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets" DESTINATION "${CMAKE_BINARY_DIR}/bin")
 endif()
