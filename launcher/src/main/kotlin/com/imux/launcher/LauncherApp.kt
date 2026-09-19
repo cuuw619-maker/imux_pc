@@ -95,7 +95,6 @@ import com.imux.runtime.MockGameLaunchService
 import com.imux.runtime.RuntimeValidatorImpl
 import com.imux.core.state.LauncherUiState
 import com.imux.runtime.ImuxPaths
-import com.imux.runtime.LauncherMetadataStore
 import kotlinx.coroutines.launch
 
 private val ImuxPrimary = Color(0xFF9DEFC9)
@@ -134,7 +133,6 @@ fun LauncherApp() {
         val repository: ConfigRepository = remember { JsonConfigRepository() }
         val validator: RuntimeValidator = remember { RuntimeValidatorImpl() }
         val gameLauncher: GameLaunchService = remember { MockGameLaunchService() }
-        val metadataStore = remember { LauncherMetadataStore() }
         val scope = rememberCoroutineScope()
 
         var state by remember { mutableStateOf<LauncherUiState>(LauncherUiState.Loading) }
@@ -142,7 +140,6 @@ fun LauncherApp() {
         var drawer by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
-            runCatching { metadataStore.initialize() }
             runCatching {
                 val config = repository.load()
                 val profile = config.installations.firstOrNull { it.id == config.selectedInstallationId }
