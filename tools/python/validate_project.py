@@ -36,9 +36,12 @@ launcher = (ROOT / "native/cpp/ImuxLauncher.cpp").read_text(encoding="utf-8")
 release = (ROOT / "core/src/main/kotlin/com/imux/core/release/ReleaseNotes.kt").read_text(encoding="utf-8")
 
 checks = {
-    "responsive centered layout": "contentW" in launcher and "1240.0f" in launcher,
+    "responsive 1920 canvas": "kDesignWidth = 1920.0f" in launcher and "kDesignHeight = 1080.0f" in launcher,
+    "scaled centered viewport": "CalculateUiViewport" in launcher and "kDesignScale = 0.82f" in launcher,
+    "input shares render layout": "ToDesignPoint" in launcher and "CalculateLauncherLayout" in launcher,
     "real game launch boundary": "CreateProcessW" in launcher and "ImuxGame.exe" in launcher,
     "built-in world fallback": "imux_world_run" in launcher,
+    "F11 fullscreen": "VK_F11" in launcher and "ToggleFullscreen" in launcher,
     "world movement": "GetAsyncKeyState('W')" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8") and "GetCursorPos" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8"),
     "world rendering": "D3D11CreateDeviceAndSwapChain" in (ROOT / "native/cpp/imux_3d_engine.cpp").read_text(encoding="utf-8"),
     "release version": 'CURRENT_VERSION = "0.0.1"' in release,
