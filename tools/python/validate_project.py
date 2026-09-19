@@ -6,6 +6,8 @@ required = [
     "native/CMakeLists.txt",
     "native/imux_launcher.manifest",
     "native/cpp/ImuxLauncher.cpp",
+    "native/cpp/imux_launcher_functions.cpp",
+    "native/cpp/imux_launcher_functions.h",
     "native/cpp/imux_3d_engine.cpp",
     "native/include/imux_3d_engine.h",
     "native/shaders/imux_ui.hlsl",
@@ -34,14 +36,15 @@ if missing:
     raise SystemExit("Missing project files: " + ", ".join(missing))
 
 launcher = (ROOT / "native/cpp/ImuxLauncher.cpp").read_text(encoding="utf-8")
+functions = (ROOT / "native/cpp/imux_launcher_functions.cpp").read_text(encoding="utf-8")
 release = (ROOT / "core/src/main/kotlin/com/imux/core/release/ReleaseNotes.kt").read_text(encoding="utf-8")
 
 checks = {
     "responsive 1920 canvas": "kDesignWidth = 1920.0f" in launcher and "kDesignHeight = 1080.0f" in launcher,
     "scaled centered viewport": "CalculateUiViewport" in launcher and "kDesignScale = 0.82f" in launcher,
-    "native transform hit-test": "GetTransform(&transform)" in launcher and "D2D1InvertMatrix(&transform)" in launcher,
+    "native transform hit-test": "ClientToUiPoint(float x, float y)" in launcher and "(x - viewport.offsetX) / viewport.scale" in launcher,
     "input shares render layout": "CalculateLauncherLayout" in launcher and "ClientToUiPoint" in launcher,
-    "real game launch boundary": "CreateProcessW" in launcher and "ImuxGame.exe" in launcher,
+    "real game launch boundary": "CreateProcessW" in functions and "ImuxGame.exe" in functions and "imux_launcher_try_launch_game" in launcher,
     "built-in world fallback": "imux_world_run" in launcher,
     "F11 fullscreen": "VK_F11" in launcher and "ToggleFullscreen" in launcher,
     "DPI manifest": "PerMonitorV2" in (ROOT / "native/imux_launcher.manifest").read_text(encoding="utf-8"),
