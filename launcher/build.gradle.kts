@@ -10,6 +10,8 @@ dependencies {
     implementation(compose.material3)
     implementation(compose.runtime)
     implementation(compose.foundation)
+    implementation(compose.materialIconsExtended)
+    implementation("org.xerial:sqlite-jdbc:3.50.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     testImplementation(kotlin("test"))
 }
