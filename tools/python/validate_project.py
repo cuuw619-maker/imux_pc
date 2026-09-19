@@ -44,7 +44,7 @@ checks = {
     "scaled centered viewport": "CalculateUiViewport" in launcher and "kDesignScale = 0.92f" in launcher,
     "native transform hit-test": "ClientToUiPoint(float x, float y)" in launcher and "(x - viewport.offsetX) / viewport.scale" in launcher,
     "input shares render layout": "CalculateLauncherLayout" in launcher and "ClientToUiPoint" in launcher,
-    "atomic ui editor": "start.play.icon" in launcher and "changelog.row.5.text" in launcher and "settings.row.3.value" in launcher,
+    "atomic ui editor": "start.play.icon" in launcher and "changelog.row.%d.text" in launcher and "settings.row.%d.value" in launcher,
     "real game launch boundary": "CreateProcessW" in functions and "ImuxGame.exe" in functions and "imux_launcher_try_launch_game" in launcher,
     "built-in world fallback": "imux_world_run" in launcher,
     "F11 fullscreen": "VK_F11" in launcher and "ToggleFullscreen" in launcher,
