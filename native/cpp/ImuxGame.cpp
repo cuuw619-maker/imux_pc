@@ -1,6 +1,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <chrono>
+#include <algorithm>
 #include "imux_3d_engine.h"
 
 namespace {
